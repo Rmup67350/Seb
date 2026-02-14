@@ -16,6 +16,7 @@ export default function HistoryTimeline({ animalId, history }: HistoryTimelinePr
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState<HistoryEntry | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<HistoryEntry | null>(null);
   const [saving, setSaving] = useState(false);
 
   const toggleExpand = (id: string) => {
@@ -70,13 +71,15 @@ export default function HistoryTimeline({ animalId, history }: HistoryTimelinePr
     }
   };
 
-  const handleDelete = async (entryId: string) => {
-    const result = await deleteHistoryEntry(animalId, entryId);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const result = await deleteHistoryEntry(animalId, deleteTarget.id);
     if (result.success) {
       showToast({ type: "success", title: "Succès", message: "Entrée supprimée" });
     } else {
       showToast({ type: "error", title: "Erreur", message: result.error || "Erreur" });
     }
+    setDeleteTarget(null);
   };
 
   const openEdit = (entry: HistoryEntry) => {
@@ -137,7 +140,7 @@ export default function HistoryTimeline({ animalId, history }: HistoryTimelinePr
                         Modifier
                       </button>
                       <button
-                        onClick={() => handleDelete(entry.id)}
+                        onClick={() => setDeleteTarget(entry)}
                         className="text-xs text-red-500 hover:underline cursor-pointer bg-transparent border-none p-0"
                       >
                         Supprimer
@@ -199,6 +202,21 @@ export default function HistoryTimeline({ animalId, history }: HistoryTimelinePr
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Confirm delete */}
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Supprimer l'entrée" size="small">
+        <p className="text-gray-700">
+          Voulez-vous vraiment supprimer l&apos;entrée <strong>{deleteTarget?.sujet}</strong> du {deleteTarget && formatDate(deleteTarget.date)} ?
+        </p>
+        <div className="flex gap-3 justify-end mt-6">
+          <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 cursor-pointer">
+            Annuler
+          </button>
+          <button onClick={handleDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 cursor-pointer">
+            Supprimer
+          </button>
+        </div>
       </Modal>
     </div>
   );

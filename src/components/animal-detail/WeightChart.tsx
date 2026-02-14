@@ -17,6 +17,7 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
   const { showToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<WeightEntry | null>(null);
 
   const sortedWeights = useMemo(
     () => [...weights].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
@@ -60,13 +61,15 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
     }
   };
 
-  const handleDelete = async (weightId: string) => {
-    const result = await deleteWeight(animalId, weightId);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const result = await deleteWeight(animalId, deleteTarget.id);
     if (result.success) {
       showToast({ type: "success", title: "Succès", message: "Pesée supprimée" });
     } else {
       showToast({ type: "error", title: "Erreur", message: result.error || "Erreur" });
     }
+    setDeleteTarget(null);
   };
 
   const color = getAnimalColor(animalType);
@@ -127,7 +130,7 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
                   <td className="py-2 text-gray-500">{w.note || "-"}</td>
                   <td className="py-2 text-right">
                     <button
-                      onClick={() => handleDelete(w.id)}
+                      onClick={() => setDeleteTarget(w)}
                       className="text-red-500 hover:text-red-700 text-xs cursor-pointer bg-transparent border-none"
                     >
                       Supprimer
@@ -183,6 +186,21 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Confirm delete */}
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Supprimer la pesée" size="small">
+        <p className="text-gray-700">
+          Voulez-vous vraiment supprimer la pesée du <strong>{deleteTarget && formatDate(deleteTarget.date)}</strong> ({deleteTarget?.poids} kg) ?
+        </p>
+        <div className="flex gap-3 justify-end mt-6">
+          <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 cursor-pointer">
+            Annuler
+          </button>
+          <button onClick={handleDelete} className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 cursor-pointer">
+            Supprimer
+          </button>
+        </div>
       </Modal>
     </div>
   );
