@@ -98,18 +98,6 @@ export default function AnimalForm({ animal, formRef }: AnimalFormProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Poids (kg)</label>
-          <input
-            type="number"
-            name="poids"
-            defaultValue={animal?.poids || ""}
-            placeholder="45.50"
-            step="0.01"
-            min="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
-        </div>
-        <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">Statut</label>
           <select
             name="statut"
