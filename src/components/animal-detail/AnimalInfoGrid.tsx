@@ -34,7 +34,7 @@ export default function AnimalInfoGrid({ animal }: AnimalInfoGridProps) {
         </div>
         <div>
           <div className="text-gray-500 mb-0.5">Poids</div>
-          <div className="font-medium">{animal.poids ? formatNumber(animal.poids) + " kg" : "-"}</div>
+          <div className="font-medium">{animal.poids ? formatNumber(animal.poids, 2) + " kg" : "-"}</div>
         </div>
         {animal.commentaire && (
           <div className="col-span-full">

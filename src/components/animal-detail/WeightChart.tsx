@@ -94,7 +94,7 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} unit=" kg" />
-              <Tooltip formatter={(value) => [`${value} kg`, "Poids"]} />
+              <Tooltip formatter={(value) => [`${formatNumber(Number(value), 2)} kg`, "Poids"]} />
               <Line type="monotone" dataKey="poids" stroke={color} strokeWidth={2} dot={{ r: 4, fill: color }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -126,7 +126,7 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
               {[...weights].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((w) => (
                 <tr key={w.id} className="border-b border-gray-100">
                   <td className="py-2">{formatDate(w.date)}</td>
-                  <td className="py-2 font-medium">{formatNumber(w.poids, 1)} kg</td>
+                  <td className="py-2 font-medium">{formatNumber(w.poids, 2)} kg</td>
                   <td className="py-2 text-gray-500">{w.note || "-"}</td>
                   <td className="py-2 text-right">
                     <button
@@ -161,10 +161,10 @@ export default function WeightChart({ animalId, animalType, weights }: WeightCha
             <input
               type="number"
               name="poids"
-              step="0.1"
+              step="0.01"
               min="0"
               required
-              placeholder="45.5"
+              placeholder="45.50"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
             />
           </div>
