@@ -1,6 +1,6 @@
 "use client";
 
-import type { Animal } from "@/store/store";
+import { useAppStore, type Animal } from "@/store/store";
 
 interface AnimalFormProps {
   animal?: Animal | null;
@@ -8,6 +8,9 @@ interface AnimalFormProps {
 }
 
 export default function AnimalForm({ animal, formRef }: AnimalFormProps) {
+  const { state } = useAppStore();
+  const maleAnimals = state.animaux.filter((a) => a.sexe === "M" && a.statut === "actif");
+  const femaleAnimals = state.animaux.filter((a) => a.sexe === "F" && a.statut === "actif");
   return (
     <form ref={formRef} className="grid gap-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -135,24 +138,40 @@ export default function AnimalForm({ animal, formRef }: AnimalFormProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Numéro de boucle du père (optionnel)</label>
+          <label className="block mb-1 text-sm font-medium text-gray-700">Père (optionnel)</label>
           <input
             type="text"
             name="numeroBouclePere"
+            list="pere-list"
             defaultValue={animal?.numeroBouclePere || ""}
-            placeholder="FR987654321"
+            placeholder="Saisir ou choisir dans la liste..."
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
+          <datalist id="pere-list">
+            {maleAnimals.map((a) => (
+              <option key={a.id} value={a.numeroBoucle}>
+                {a.nom ? `${a.nom} - ${a.numeroBoucle}` : a.numeroBoucle}
+              </option>
+            ))}
+          </datalist>
         </div>
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Numéro de boucle de la mère (optionnel)</label>
+          <label className="block mb-1 text-sm font-medium text-gray-700">Mère (optionnel)</label>
           <input
             type="text"
             name="numeroBoucleMere"
+            list="mere-list"
             defaultValue={animal?.numeroBoucleMere || ""}
-            placeholder="FR123987456"
+            placeholder="Saisir ou choisir dans la liste..."
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
+          <datalist id="mere-list">
+            {femaleAnimals.map((a) => (
+              <option key={a.id} value={a.numeroBoucle}>
+                {a.nom ? `${a.nom} - ${a.numeroBoucle}` : a.numeroBoucle}
+              </option>
+            ))}
+          </datalist>
         </div>
       </div>
     </form>
