@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#10b981" rx="80"/>
+  <g transform="translate(256, 256)">
+    <!-- Grange/Barn -->
+    <path d="M-120,-80 L0,-160 L120,-80 L120,80 L-120,80 Z" fill="#8b4513" stroke="#654321" stroke-width="8"/>
+    <path d="M-120,-80 L0,-160 L120,-80 Z" fill="#d2691e"/>
+    <!-- Porte -->
+    <rect x="-40" y="0" width="80" height="80" fill="#654321" stroke="#4a3319" stroke-width="4" rx="5"/>
+    <!-- Fenêtres -->
+    <rect x="-90" y="-40" width="30" height="30" fill="#fff9e6" stroke="#654321" stroke-width="3" rx="3"/>
+    <rect x="60" y="-40" width="30" height="30" fill="#fff9e6" stroke="#654321" stroke-width="3" rx="3"/>
+    <!-- Croix sur porte -->
+    <line x1="-40" y1="0" x2="-40" y2="80" stroke="#4a3319" stroke-width="4"/>
+    <line x1="-40" y1="40" x2="40" y2="40" stroke="#4a3319" stroke-width="4"/>
+  </g>
+  <text x="256" y="440" font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="white" text-anchor="middle">FERME</text>
+</svg>
