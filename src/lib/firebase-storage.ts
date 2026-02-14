@@ -1,11 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { app } from "./firebase";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-const BUCKET = "animaux";
+const storage = getStorage(app);
 
 export interface StorageResult {
   success: boolean;
@@ -24,14 +20,10 @@ export async function uploadFile(
     return { success: false, error: "Le fichier dépasse la taille maximale de 10 MB" };
   }
   try {
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
-    if (error) return { success: false, error: error.message };
-
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
-    return { success: true, url: urlData.publicUrl, storagePath: path };
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    return { success: true, url, storagePath: path };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
@@ -39,8 +31,8 @@ export async function uploadFile(
 
 export async function deleteFile(path: string): Promise<StorageResult> {
   try {
-    const { error } = await supabase.storage.from(BUCKET).remove([path]);
-    if (error) return { success: false, error: error.message };
+    const storageRef = ref(storage, path);
+    await deleteObject(storageRef);
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
