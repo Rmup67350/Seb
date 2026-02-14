@@ -43,7 +43,7 @@ export default function AnimalCard({ animal, onEdit, onDelete, onClick }: Animal
             </div>
             <div>
               <div className="text-gray-500 mb-0.5">Poids</div>
-              <div className="font-medium">{animal.poids ? formatNumber(animal.poids) + " kg" : "-"}</div>
+              <div className="font-medium">{animal.poids ? formatNumber(animal.poids, 2) + " kg" : "-"}</div>
             </div>
           </div>
         </div>
