@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useRef, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAppStore } from "@/store/store";
 import { useToast } from "@/components/Toast";
 import Modal, { ConfirmModal } from "@/components/Modal";
@@ -19,13 +19,22 @@ import {
 } from "@/services/animal-service";
 import type { Animal } from "@/store/store";
 
-export default function AnimauxPage() {
+function AnimauxContent() {
   const { state } = useAppStore();
   const { showToast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const formRef = useRef<HTMLFormElement>(null);
 
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
+
+  // Appliquer le filtre depuis l'URL au chargement
+  useEffect(() => {
+    const typeParam = searchParams.get("type");
+    if (typeParam && ["ovin", "bovin", "caprin", "porcin"].includes(typeParam)) {
+      setCurrentFilter(typeParam);
+    }
+  }, [searchParams]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Animal | null>(null);
@@ -194,5 +203,13 @@ export default function AnimauxPage() {
         danger
       />
     </div>
+  );
+}
+
+export default function AnimauxPage() {
+  return (
+    <Suspense fallback={<div className="fade-in p-8 text-center text-gray-400">Chargement...</div>}>
+      <AnimauxContent />
+    </Suspense>
   );
 }
