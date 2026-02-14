@@ -13,7 +13,9 @@
       "Bash(xargs kill:*)",
       "Bash(ls:*)",
       "Bash(git commit:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(NEXT_BUILD_WEBPACK=1 npm run build:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }
