@@ -2,19 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store/store";
-import { formatCurrency, getAnimalIcon } from "@/lib/utils";
+import { formatCurrency, formatDate, getAnimalIcon } from "@/lib/utils";
 import { getVehicleIcon, formatAlertMessage } from "@/lib/vehicle-utils";
 import { getVehicleStats } from "@/services/vehicle-service";
+import { getUrgentTasks, getTaskStats, isTaskOverdue, isTaskDueSoon, getDaysUntilDue } from "@/services/task-service";
 import KpiCard from "@/components/KpiCard";
 import { useMemo } from "react";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { state } = useAppStore();
-  const { stats, alertes, vehicles, maintenanceAlerts } = state;
+  const { stats, alertes, vehicles, maintenanceAlerts, taches } = state;
 
   // Calculer les stats des véhicules
   const vehicleStats = useMemo(() => getVehicleStats(vehicles), [vehicles]);
+
+  // Tâches urgentes pour le dashboard
+  const urgentTasks = useMemo(() => getUrgentTasks(taches, 5), [taches]);
+  const taskStats = useMemo(() => getTaskStats(taches), [taches]);
 
   // Trier les alertes de maintenance par urgence
   const sortedMaintenanceAlerts = useMemo(
@@ -72,6 +77,84 @@ export default function DashboardPage() {
           onClick={() => router.push("/vehicules")}
         />
       </div>
+
+      {/* Tâches à faire */}
+      {(urgentTasks.length > 0 || taskStats.enRetard > 0) && (
+        <div className="bg-white rounded-xl shadow-sm mb-8">
+          <div
+            className="flex items-center gap-3 px-6 py-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => router.push("/taches")}
+          >
+            <span className="text-2xl">📋</span>
+            <h3 className="text-lg font-semibold m-0 flex-1">
+              Tâches à faire ({taskStats.aFaire + taskStats.enCours})
+            </h3>
+            {taskStats.enRetard > 0 && (
+              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                {taskStats.enRetard} en retard
+              </span>
+            )}
+            <span className="text-gray-400 text-sm">Voir tout →</span>
+          </div>
+          <div className="p-6">
+            {urgentTasks.map((task) => {
+              const overdue = isTaskOverdue(task);
+              const dueSoon = isTaskDueSoon(task);
+              const days = getDaysUntilDue(task);
+              let echeanceText = "";
+              if (days !== null) {
+                if (days < 0) echeanceText = `En retard (${Math.abs(days)}j)`;
+                else if (days === 0) echeanceText = "Aujourd'hui";
+                else echeanceText = `Dans ${days}j`;
+              }
+              return (
+                <div
+                  key={task.id}
+                  onClick={() => router.push("/taches")}
+                  className={`px-4 py-3 rounded-lg mb-2 border-l-4 cursor-pointer hover:opacity-80 transition-opacity ${
+                    overdue
+                      ? "bg-red-50 border-l-red-500 text-red-800"
+                      : dueSoon
+                      ? "bg-amber-50 border-l-amber-500 text-amber-800"
+                      : task.priorite === "haute"
+                      ? "bg-red-50 border-l-red-400 text-red-800"
+                      : task.priorite === "moyenne"
+                      ? "bg-amber-50 border-l-amber-400 text-amber-800"
+                      : "bg-green-50 border-l-green-400 text-green-800"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <strong>{task.titre}</strong>
+                    <div className="flex items-center gap-2 text-xs">
+                      {task.categorie && (
+                        <span className="bg-white/50 px-2 py-0.5 rounded-full">{task.categorie}</span>
+                      )}
+                      {echeanceText && (
+                        <span className="font-medium">{echeanceText}</span>
+                      )}
+                    </div>
+                  </div>
+                  {(task.animalNom || task.vehiculeNom || task.dateEcheance) && (
+                    <small className="flex items-center gap-2 mt-1">
+                      {task.dateEcheance && <span>📅 {formatDate(task.dateEcheance)}</span>}
+                      {task.animalNom && <span>🐾 {task.animalNom}</span>}
+                      {task.vehiculeNom && <span>🚗 {task.vehiculeNom}</span>}
+                    </small>
+                  )}
+                </div>
+              );
+            })}
+            {taches.filter((t) => t.statut !== "terminee").length > 5 && (
+              <button
+                onClick={() => router.push("/taches")}
+                className="text-sm text-primary hover:underline mt-2"
+              >
+                Voir toutes les tâches ({taches.filter((t) => t.statut !== "terminee").length - 5} de plus)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Alertes d'entretien */}
       {sortedMaintenanceAlerts.length > 0 && (
@@ -164,6 +247,7 @@ export default function DashboardPage() {
               <li>✅ Templates d&apos;entretien prédéfinis</li>
               <li>✅ Gestion des documents (carte grise, assurance, CT...)</li>
               <li>✅ Suivi des coûts d&apos;entretien et pièces</li>
+              <li>✅ Gestion des tâches avec échéances et notifications</li>
               <li>🔄 Synchronisation en temps réel avec Firebase</li>
               <li>📱 Interface responsive (mobile, tablette, desktop)</li>
             </ul>

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect, u
 import firebaseService from "@/lib/firebase-service";
 import type { Unsubscribe } from "firebase/database";
 import type { Vehicle, MaintenanceAlert, MaintenanceEntry } from "@/types/vehicle";
+import type { Task } from "@/types/task";
 import { calculateMaintenanceAlerts } from "@/services/vehicle-detail-service";
 
 export interface Animal {
@@ -50,6 +51,7 @@ interface AppState {
   vehicles: Vehicle[];
   maintenanceEntries: MaintenanceEntry[];
   maintenanceAlerts: MaintenanceAlert[];
+  taches: Task[];
   stats: Stats;
   loading: boolean;
   sidebarOpen: boolean;
@@ -64,6 +66,7 @@ type Action =
   | { type: "SET_VEHICLES"; payload: Vehicle[] }
   | { type: "SET_MAINTENANCE_ENTRIES"; payload: MaintenanceEntry[] }
   | { type: "SET_MAINTENANCE_ALERTS"; payload: MaintenanceAlert[] }
+  | { type: "SET_TACHES"; payload: Task[] }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "TOGGLE_SIDEBAR" }
   | { type: "CLOSE_SIDEBAR" }
@@ -90,6 +93,7 @@ const initialState: AppState = {
   vehicles: [],
   maintenanceEntries: [],
   maintenanceAlerts: [],
+  taches: [],
   stats: { totalAnimaux: 0, ovins: 0, bovins: 0, caprins: 0, porcins: 0, profitGlobal: 0 },
   loading: true,
   sidebarOpen: false,
@@ -118,6 +122,8 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "SET_MAINTENANCE_ALERTS":
       return { ...state, maintenanceAlerts: action.payload };
+    case "SET_TACHES":
+      return { ...state, taches: action.payload };
     case "UPDATE_MAINTENANCE_ALERTS": {
       const alerts = calculateMaintenanceAlerts(state.vehicles, state.maintenanceEntries);
       return { ...state, maintenanceAlerts: alerts };
@@ -179,6 +185,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     listeners.push(
       firebaseService.listen<MaintenanceEntry>("vehicules-maintenance", (data) =>
         dispatch({ type: "SET_MAINTENANCE_ENTRIES", payload: data })
+      )
+    );
+    listeners.push(
+      firebaseService.listen<Task>("taches", (data) =>
+        dispatch({ type: "SET_TACHES", payload: data })
       )
     );
 

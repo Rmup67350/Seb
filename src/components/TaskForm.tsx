@@ -1,0 +1,490 @@
+"use client";
+
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useAppStore } from "@/store/store";
+import type { Task } from "@/types/task";
+import { getAnimalIcon } from "@/lib/utils";
+import { getVehicleIcon } from "@/lib/vehicle-utils";
+import { getVehicleDisplayName } from "@/services/vehicle-service";
+
+interface TaskFormProps {
+  task?: Task | null;
+  formRef: React.RefObject<HTMLFormElement | null>;
+}
+
+export default function TaskForm({ task, formRef }: TaskFormProps) {
+  const { state } = useAppStore();
+
+  // Catégorie (même pattern que les races)
+  const [categorieValue, setCategorieValue] = useState(task?.categorie || "");
+  const [categorieDropdownOpen, setCategorieDropdownOpen] = useState(false);
+  const [categorieSearchQuery, setCategorieSearchQuery] = useState("");
+  const [isAddingNewCategorie, setIsAddingNewCategorie] = useState(false);
+  const categorieDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Animal lié
+  const [selectedAnimalId, setSelectedAnimalId] = useState(task?.animalId || "");
+  const [animalSearchQuery, setAnimalSearchQuery] = useState("");
+  const [animalDropdownOpen, setAnimalDropdownOpen] = useState(false);
+  const animalDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Véhicule lié
+  const [selectedVehiculeId, setSelectedVehiculeId] = useState(task?.vehiculeId || "");
+  const [vehiculeSearchQuery, setVehiculeSearchQuery] = useState("");
+  const [vehiculeDropdownOpen, setVehiculeDropdownOpen] = useState(false);
+  const vehiculeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Catégories uniques depuis les tâches existantes
+  const categorieSuggestions = useMemo(() => {
+    const cats = state.taches
+      .filter((t) => t.categorie && t.categorie.trim() !== "")
+      .map((t) => t.categorie!.trim());
+    return [...new Set(cats)].sort((a, b) => a.localeCompare(b, "fr"));
+  }, [state.taches]);
+
+  const filteredCategorieSuggestions = useMemo(() => {
+    if (!categorieSearchQuery) return categorieSuggestions;
+    const lower = categorieSearchQuery.toLowerCase();
+    return categorieSuggestions.filter((c) => c.toLowerCase().includes(lower));
+  }, [categorieSuggestions, categorieSearchQuery]);
+
+  // Animaux actifs
+  const activeAnimals = useMemo(() => {
+    return state.animaux
+      .filter((a) => a.statut === "actif")
+      .sort((a, b) => {
+        const nameA = a.nom || a.numeroBoucle || "";
+        const nameB = b.nom || b.numeroBoucle || "";
+        return nameA.localeCompare(nameB, "fr");
+      });
+  }, [state.animaux]);
+
+  const filteredAnimals = useMemo(() => {
+    if (!animalSearchQuery) return activeAnimals;
+    const lower = animalSearchQuery.toLowerCase();
+    return activeAnimals.filter(
+      (a) =>
+        a.nom?.toLowerCase().includes(lower) ||
+        a.numeroBoucle?.toLowerCase().includes(lower) ||
+        a.race?.toLowerCase().includes(lower)
+    );
+  }, [activeAnimals, animalSearchQuery]);
+
+  // Véhicules actifs
+  const activeVehicles = useMemo(() => {
+    return state.vehicles
+      .filter((v) => v.statut === "actif" || v.statut === "en_reparation")
+      .sort((a, b) => {
+        const nameA = getVehicleDisplayName(a);
+        const nameB = getVehicleDisplayName(b);
+        return nameA.localeCompare(nameB, "fr");
+      });
+  }, [state.vehicles]);
+
+  const filteredVehicles = useMemo(() => {
+    if (!vehiculeSearchQuery) return activeVehicles;
+    const lower = vehiculeSearchQuery.toLowerCase();
+    return activeVehicles.filter(
+      (v) =>
+        v.nom?.toLowerCase().includes(lower) ||
+        v.marque?.toLowerCase().includes(lower) ||
+        v.modele?.toLowerCase().includes(lower) ||
+        v.plaqueImmatriculation?.toLowerCase().includes(lower)
+    );
+  }, [activeVehicles, vehiculeSearchQuery]);
+
+  // Noms pour les hidden inputs
+  const selectedAnimal = useMemo(
+    () => activeAnimals.find((a) => a.id === selectedAnimalId),
+    [activeAnimals, selectedAnimalId]
+  );
+  const selectedVehicle = useMemo(
+    () => activeVehicles.find((v) => v.id === selectedVehiculeId),
+    [activeVehicles, selectedVehiculeId]
+  );
+
+  const animalDisplayName = selectedAnimal
+    ? selectedAnimal.nom
+      ? `${selectedAnimal.nom}${selectedAnimal.numeroBoucle ? ` (${selectedAnimal.numeroBoucle})` : ""}`
+      : selectedAnimal.numeroBoucle || ""
+    : "";
+
+  const vehiculeDisplayName = selectedVehicle ? getVehicleDisplayName(selectedVehicle) : "";
+
+  // Fermer les dropdowns au clic extérieur
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (categorieDropdownRef.current && !categorieDropdownRef.current.contains(e.target as Node)) {
+        setCategorieDropdownOpen(false);
+        setCategorieSearchQuery("");
+        setIsAddingNewCategorie(false);
+      }
+      if (animalDropdownRef.current && !animalDropdownRef.current.contains(e.target as Node)) {
+        setAnimalDropdownOpen(false);
+        setAnimalSearchQuery("");
+      }
+      if (vehiculeDropdownRef.current && !vehiculeDropdownRef.current.contains(e.target as Node)) {
+        setVehiculeDropdownOpen(false);
+        setVehiculeSearchQuery("");
+      }
+    }
+    if (categorieDropdownOpen || animalDropdownOpen || vehiculeDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [categorieDropdownOpen, animalDropdownOpen, vehiculeDropdownOpen]);
+
+  return (
+    <form ref={formRef} className="grid gap-4">
+      {/* Titre */}
+      <div>
+        <label className="block mb-1 text-sm font-medium text-gray-700">
+          Titre <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          name="titre"
+          defaultValue={task?.titre || ""}
+          placeholder="Ex: Vacciner les agneaux"
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+        />
+      </div>
+
+      {/* Priorité + Statut */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Priorité <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="priorite"
+            defaultValue={task?.priorite || "moyenne"}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          >
+            <option value="haute">🔴 Haute</option>
+            <option value="moyenne">🟡 Moyenne</option>
+            <option value="basse">🟢 Basse</option>
+          </select>
+        </div>
+        <div>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Statut <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="statut"
+            defaultValue={task?.statut || "a_faire"}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          >
+            <option value="a_faire">A faire</option>
+            <option value="en_cours">En cours</option>
+            <option value="terminee">Terminée</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Date d'échéance + Catégorie */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Date d&apos;échéance
+          </label>
+          <input
+            type="date"
+            name="dateEcheance"
+            defaultValue={task?.dateEcheance || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          />
+        </div>
+
+        {/* Catégorie - même pattern que les races */}
+        <div className="relative" ref={categorieDropdownRef}>
+          <label className="block mb-1 text-sm font-medium text-gray-700">Catégorie</label>
+          <input type="hidden" name="categorie" value={categorieValue} />
+          {isAddingNewCategorie ? (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={categorieValue}
+                onChange={(e) => setCategorieValue(e.target.value)}
+                placeholder="Nouvelle catégorie..."
+                autoFocus
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingNewCategorie(false);
+                  if (!categorieValue) setCategorieDropdownOpen(false);
+                }}
+                className="px-2 py-2 text-xs text-gray-500 hover:text-gray-800 bg-gray-100 rounded-lg cursor-pointer border border-gray-300"
+              >
+                OK
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setCategorieDropdownOpen(!categorieDropdownOpen);
+                setCategorieSearchQuery("");
+              }}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-left flex items-center justify-between cursor-pointer bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 ${
+                categorieDropdownOpen ? "border-primary ring-2 ring-primary/10" : ""
+              }`}
+            >
+              <span className={categorieValue ? "text-gray-900" : "text-gray-400"}>
+                {categorieValue || "Sélectionner une catégorie..."}
+              </span>
+              <span className="text-gray-400 text-xs ml-2">{categorieDropdownOpen ? "▲" : "▼"}</span>
+            </button>
+          )}
+          {categorieDropdownOpen && !isAddingNewCategorie && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden animate-[fadeIn_0.15s_ease-out]">
+              {categorieSuggestions.length > 3 && (
+                <div className="p-2 border-b border-gray-100">
+                  <input
+                    type="text"
+                    value={categorieSearchQuery}
+                    onChange={(e) => setCategorieSearchQuery(e.target.value)}
+                    placeholder="Filtrer..."
+                    autoFocus
+                    className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-primary"
+                  />
+                </div>
+              )}
+              <div className="overflow-y-auto max-h-48">
+                {categorieValue && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategorieValue("");
+                      setCategorieDropdownOpen(false);
+                      setCategorieSearchQuery("");
+                    }}
+                    className="w-full px-3 py-2 text-sm text-left text-gray-400 italic hover:bg-gray-50 cursor-pointer bg-transparent border-none"
+                  >
+                    Aucune catégorie
+                  </button>
+                )}
+                {filteredCategorieSuggestions.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setCategorieValue(cat);
+                      setCategorieDropdownOpen(false);
+                      setCategorieSearchQuery("");
+                    }}
+                    className={`w-full px-3 py-2 text-sm text-left hover:bg-primary/5 cursor-pointer bg-transparent border-none flex items-center justify-between ${
+                      categorieValue === cat ? "bg-primary/10 text-primary font-medium" : "text-gray-700"
+                    }`}
+                  >
+                    <span>{cat}</span>
+                    {categorieValue === cat && <span className="text-primary">✓</span>}
+                  </button>
+                ))}
+                {categorieSearchQuery && filteredCategorieSuggestions.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-400 italic">Aucune catégorie trouvée</div>
+                )}
+              </div>
+              <div className="border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingNewCategorie(true);
+                    setCategorieDropdownOpen(false);
+                    setCategorieSearchQuery("");
+                    setCategorieValue("");
+                  }}
+                  className="w-full px-3 py-2.5 text-sm text-left text-primary font-medium hover:bg-primary/5 cursor-pointer bg-transparent border-none flex items-center gap-2"
+                >
+                  <span>+</span>
+                  <span>Ajouter une catégorie</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="block mb-1 text-sm font-medium text-gray-700">Description</label>
+        <textarea
+          name="description"
+          defaultValue={task?.description || ""}
+          placeholder="Détails de la tâche..."
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 resize-y min-h-[80px]"
+        />
+      </div>
+
+      {/* Lier un animal / Lier un véhicule */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Animal */}
+        <div className="relative" ref={animalDropdownRef}>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Lier un animal <span className="text-xs text-gray-400 font-normal">(optionnel)</span>
+          </label>
+          <input type="hidden" name="animalId" value={selectedAnimalId} />
+          <input type="hidden" name="animalNom" value={animalDisplayName} />
+          <button
+            type="button"
+            onClick={() => {
+              setAnimalDropdownOpen(!animalDropdownOpen);
+              setAnimalSearchQuery("");
+            }}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-left flex items-center justify-between cursor-pointer bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 ${
+              animalDropdownOpen ? "border-primary ring-2 ring-primary/10" : ""
+            }`}
+          >
+            <span className={selectedAnimalId ? "text-gray-900" : "text-gray-400"}>
+              {selectedAnimalId
+                ? `${getAnimalIcon(selectedAnimal?.type || "")} ${animalDisplayName}`
+                : "Aucun animal"}
+            </span>
+            <span className="text-gray-400 text-xs ml-2">{animalDropdownOpen ? "▲" : "▼"}</span>
+          </button>
+          {animalDropdownOpen && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden animate-[fadeIn_0.15s_ease-out]">
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  type="text"
+                  value={animalSearchQuery}
+                  onChange={(e) => setAnimalSearchQuery(e.target.value)}
+                  placeholder="Rechercher un animal..."
+                  autoFocus
+                  className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div className="overflow-y-auto max-h-48">
+                {selectedAnimalId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAnimalId("");
+                      setAnimalDropdownOpen(false);
+                      setAnimalSearchQuery("");
+                    }}
+                    className="w-full px-3 py-2 text-sm text-left text-gray-400 italic hover:bg-gray-50 cursor-pointer bg-transparent border-none"
+                  >
+                    Aucun animal
+                  </button>
+                )}
+                {filteredAnimals.map((animal) => {
+                  const name = animal.nom
+                    ? `${animal.nom}${animal.numeroBoucle ? ` (${animal.numeroBoucle})` : ""}`
+                    : animal.numeroBoucle || "Sans nom";
+                  return (
+                    <button
+                      key={animal.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAnimalId(animal.id);
+                        setAnimalDropdownOpen(false);
+                        setAnimalSearchQuery("");
+                      }}
+                      className={`w-full px-3 py-2 text-sm text-left hover:bg-primary/5 cursor-pointer bg-transparent border-none flex items-center gap-2 ${
+                        selectedAnimalId === animal.id ? "bg-primary/10 text-primary font-medium" : "text-gray-700"
+                      }`}
+                    >
+                      <span>{getAnimalIcon(animal.type)}</span>
+                      <span className="flex-1">{name}</span>
+                      {animal.race && <span className="text-xs text-gray-400">{animal.race}</span>}
+                      {selectedAnimalId === animal.id && <span className="text-primary">✓</span>}
+                    </button>
+                  );
+                })}
+                {animalSearchQuery && filteredAnimals.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-400 italic">Aucun animal trouvé</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Véhicule */}
+        <div className="relative" ref={vehiculeDropdownRef}>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Lier un véhicule <span className="text-xs text-gray-400 font-normal">(optionnel)</span>
+          </label>
+          <input type="hidden" name="vehiculeId" value={selectedVehiculeId} />
+          <input type="hidden" name="vehiculeNom" value={vehiculeDisplayName} />
+          <button
+            type="button"
+            onClick={() => {
+              setVehiculeDropdownOpen(!vehiculeDropdownOpen);
+              setVehiculeSearchQuery("");
+            }}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-left flex items-center justify-between cursor-pointer bg-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 ${
+              vehiculeDropdownOpen ? "border-primary ring-2 ring-primary/10" : ""
+            }`}
+          >
+            <span className={selectedVehiculeId ? "text-gray-900" : "text-gray-400"}>
+              {selectedVehiculeId
+                ? `${getVehicleIcon(selectedVehicle?.type || "voiture")} ${vehiculeDisplayName}`
+                : "Aucun véhicule"}
+            </span>
+            <span className="text-gray-400 text-xs ml-2">{vehiculeDropdownOpen ? "▲" : "▼"}</span>
+          </button>
+          {vehiculeDropdownOpen && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden animate-[fadeIn_0.15s_ease-out]">
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  type="text"
+                  value={vehiculeSearchQuery}
+                  onChange={(e) => setVehiculeSearchQuery(e.target.value)}
+                  placeholder="Rechercher un véhicule..."
+                  autoFocus
+                  className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div className="overflow-y-auto max-h-48">
+                {selectedVehiculeId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedVehiculeId("");
+                      setVehiculeDropdownOpen(false);
+                      setVehiculeSearchQuery("");
+                    }}
+                    className="w-full px-3 py-2 text-sm text-left text-gray-400 italic hover:bg-gray-50 cursor-pointer bg-transparent border-none"
+                  >
+                    Aucun véhicule
+                  </button>
+                )}
+                {filteredVehicles.map((vehicle) => (
+                  <button
+                    key={vehicle.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedVehiculeId(vehicle.id);
+                      setVehiculeDropdownOpen(false);
+                      setVehiculeSearchQuery("");
+                    }}
+                    className={`w-full px-3 py-2 text-sm text-left hover:bg-primary/5 cursor-pointer bg-transparent border-none flex items-center gap-2 ${
+                      selectedVehiculeId === vehicle.id ? "bg-primary/10 text-primary font-medium" : "text-gray-700"
+                    }`}
+                  >
+                    <span>{getVehicleIcon(vehicle.type)}</span>
+                    <span className="flex-1">{getVehicleDisplayName(vehicle)}</span>
+                    {vehicle.plaqueImmatriculation && (
+                      <span className="text-xs text-gray-400">{vehicle.plaqueImmatriculation}</span>
+                    )}
+                    {selectedVehiculeId === vehicle.id && <span className="text-primary">✓</span>}
+                  </button>
+                ))}
+                {vehiculeSearchQuery && filteredVehicles.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-400 italic">Aucun véhicule trouvé</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </form>
+  );
+}
