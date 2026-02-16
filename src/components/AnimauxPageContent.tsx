@@ -8,7 +8,7 @@ import Modal, { ConfirmModal } from "@/components/Modal";
 import AnimalCard from "@/components/AnimalCard";
 import AnimalForm from "@/components/AnimalForm";
 import KpiCard from "@/components/KpiCard";
-import { getAnimalIcon } from "@/lib/utils";
+import { getAnimalIcon, getAnimalLabel, getAnimalBgColor } from "@/lib/utils";
 import {
   createAnimal,
   deleteAnimal as deleteAnimalService,
@@ -19,6 +19,40 @@ import {
 } from "@/services/animal-service";
 import type { Animal } from "@/store/store";
 
+function sortByLastModified(animals: Animal[]): Animal[] {
+  return [...animals].sort((a, b) => {
+    const dateA = a.derniereMAJ ? new Date(a.derniereMAJ).getTime() : 0;
+    const dateB = b.derniereMAJ ? new Date(b.derniereMAJ).getTime() : 0;
+    return dateB - dateA; // Plus récent en premier
+  });
+}
+
+function groupByBirthYear(animaux: Animal[]): { year: string; animals: Animal[] }[] {
+  const groups: Record<string, Animal[]> = {};
+
+  for (const animal of animaux) {
+    let year = "Non renseigné";
+    if (animal.dateNaissance) {
+      const date = new Date(animal.dateNaissance);
+      if (!isNaN(date.getTime())) {
+        year = date.getFullYear().toString();
+      }
+    }
+    if (!groups[year]) groups[year] = [];
+    groups[year].push(animal);
+  }
+
+  // Trier par année décroissante, "Non renseigné" à la fin
+  // Au sein de chaque groupe, trier par dernière modification
+  return Object.entries(groups)
+    .sort(([a], [b]) => {
+      if (a === "Non renseigné") return 1;
+      if (b === "Non renseigné") return -1;
+      return parseInt(b) - parseInt(a);
+    })
+    .map(([year, animals]) => ({ year, animals: sortByLastModified(animals) }));
+}
+
 export default function AnimauxPageContent() {
   const { state } = useAppStore();
   const { showToast } = useToast();
@@ -27,28 +61,60 @@ export default function AnimauxPageContent() {
   const formRef = useRef<HTMLFormElement>(null);
 
   const [currentFilter, setCurrentFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>("actif");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Animal | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Appliquer le filtre depuis l'URL au chargement
+  // Synchroniser le filtre avec l'URL (source de vérité)
   useEffect(() => {
     const typeParam = searchParams.get("type");
     if (typeParam && ["ovin", "bovin", "caprin", "porcin"].includes(typeParam)) {
       setCurrentFilter(typeParam);
+    } else {
+      setCurrentFilter(null);
     }
   }, [searchParams]);
+
+  // Navigation avec mise à jour de l'URL pour que le swipe-back fonctionne
+  const navigateToType = (type: string | null) => {
+    setStatusFilter("actif");
+    if (type) {
+      router.push(`/animaux?type=${type}`);
+    } else {
+      router.push("/animaux");
+    }
+  };
 
   const animaux = state.animaux;
   const stats = useMemo(() => getAnimalStats(animaux), [animaux]);
 
   const filteredAnimaux = useMemo(() => {
-    let filtered = animaux.filter((a) => a.statut === "actif");
+    let filtered = animaux;
+    if (statusFilter) filtered = filtered.filter((a) => a.statut === statusFilter);
     if (currentFilter) filtered = filtered.filter((a) => a.type === currentFilter);
     if (searchQuery) filtered = searchAnimaux(filtered, searchQuery);
-    return filtered;
-  }, [animaux, currentFilter, searchQuery]);
+    return sortByLastModified(filtered);
+  }, [animaux, currentFilter, statusFilter, searchQuery]);
+
+  const groupedAnimaux = useMemo(() => {
+    if (!currentFilter) return null;
+    return groupByBirthYear(filteredAnimaux);
+  }, [filteredAnimaux, currentFilter]);
+
+  // Comptage par statut pour l'espèce filtrée
+  const statusCounts = useMemo(() => {
+    if (!currentFilter) return null;
+    const ofType = animaux.filter((a) => a.type === currentFilter);
+    return {
+      tous: ofType.length,
+      actif: ofType.filter((a) => a.statut === "actif").length,
+      vendu: ofType.filter((a) => a.statut === "vendu").length,
+      mort: ofType.filter((a) => a.statut === "mort").length,
+      reforme: ofType.filter((a) => a.statut === "reforme").length,
+    };
+  }, [animaux, currentFilter]);
 
   const handleSave = async () => {
     if (!formRef.current || saving) return;
@@ -93,6 +159,16 @@ export default function AnimauxPageContent() {
     setDeleteTarget(null);
   };
 
+  const renderAnimalCard = (animal: Animal) => (
+    <AnimalCard
+      key={animal.id}
+      animal={animal}
+      onEdit={() => router.push(`/animaux/${animal.id}`)}
+      onDelete={handleDelete}
+      onClick={(a) => router.push(`/animaux/${a.id}`)}
+    />
+  );
+
   return (
     <div className="fade-in">
       {/* Header */}
@@ -106,16 +182,95 @@ export default function AnimauxPageContent() {
         </button>
       </div>
 
-      {/* Stats rapides */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-        <KpiCard label="Total" value={stats.actifs} onClick={() => setCurrentFilter(null)} />
-        <KpiCard label={`${getAnimalIcon("ovin")} Ovins`} value={stats.parType.ovins} borderColorClass="border-l-ovin" valueColorClass="text-ovin" onClick={() => setCurrentFilter("ovin")} />
-        <KpiCard label={`${getAnimalIcon("bovin")} Bovins`} value={stats.parType.bovins} borderColorClass="border-l-bovin" valueColorClass="text-bovin" onClick={() => setCurrentFilter("bovin")} />
-        <KpiCard label={`${getAnimalIcon("caprin")} Caprins`} value={stats.parType.caprins} borderColorClass="border-l-caprin" valueColorClass="text-caprin" onClick={() => setCurrentFilter("caprin")} />
-        <KpiCard label={`${getAnimalIcon("porcin")} Porcins`} value={stats.parType.porcins} borderColorClass="border-l-porcin" valueColorClass="text-porcin" onClick={() => setCurrentFilter("porcin")} />
-      </div>
+      {/* Stats rapides - masquées quand un filtre de type est actif */}
+      {!currentFilter && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+          <KpiCard
+            label="Total"
+            value={stats.actifs}
+            onClick={() => navigateToType(null)}
+            borderColorClass="border-l-primary"
+          />
+          <KpiCard
+            label={`${getAnimalIcon("ovin")} Ovins`}
+            value={stats.parType.ovins}
+            borderColorClass="border-l-ovin"
+            valueColorClass="text-ovin"
+            onClick={() => navigateToType("ovin")}
+          />
+          <KpiCard
+            label={`${getAnimalIcon("bovin")} Bovins`}
+            value={stats.parType.bovins}
+            borderColorClass="border-l-bovin"
+            valueColorClass="text-bovin"
+            onClick={() => navigateToType("bovin")}
+          />
+          <KpiCard
+            label={`${getAnimalIcon("caprin")} Caprins`}
+            value={stats.parType.caprins}
+            borderColorClass="border-l-caprin"
+            valueColorClass="text-caprin"
+            onClick={() => navigateToType("caprin")}
+          />
+          <KpiCard
+            label={`${getAnimalIcon("porcin")} Porcins`}
+            value={stats.parType.porcins}
+            borderColorClass="border-l-porcin"
+            valueColorClass="text-porcin"
+            onClick={() => navigateToType("porcin")}
+          />
+        </div>
+      )}
 
-      {/* Barre de recherche et filtres */}
+      {/* Titre de la vue filtrée par espèce */}
+      {currentFilter && (
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigateToType(null)}
+              className="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all cursor-pointer"
+              title="Retour à tous les animaux"
+            >
+              ←
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{getAnimalIcon(currentFilter)}</span>
+              <h2 className="text-xl sm:text-2xl font-bold m-0">
+                {getAnimalLabel(currentFilter)}s
+              </h2>
+              <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${getAnimalBgColor(currentFilter)}`}>
+                {filteredAnimaux.length}
+              </span>
+            </div>
+          </div>
+          {/* Filtres par statut */}
+          {statusCounts && (
+            <div className="flex gap-2 flex-wrap ml-11">
+              {([
+                { key: null, label: "Tous", count: statusCounts.tous },
+                { key: "actif", label: "Actifs", count: statusCounts.actif },
+                { key: "vendu", label: "Vendus", count: statusCounts.vendu },
+                { key: "mort", label: "Morts", count: statusCounts.mort },
+                { key: "reforme", label: "Réformés", count: statusCounts.reforme },
+              ] as const).map(({ key, label, count }) => (
+                <button
+                  key={label}
+                  onClick={() => setStatusFilter(key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all cursor-pointer border ${
+                    statusFilter === key
+                      ? "bg-primary text-white border-primary"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:bg-gray-50"
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Barre de recherche */}
       <div className="bg-white rounded-xl shadow-sm p-4 mb-8">
         <div className="flex gap-4 flex-wrap">
           <input
@@ -123,19 +278,21 @@ export default function AnimauxPageContent() {
             placeholder="🔍 Rechercher par numéro, nom ou race..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 min-w-[250px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+            className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
-          <select
-            value={currentFilter || ""}
-            onChange={(e) => setCurrentFilter(e.target.value || null)}
-            className="w-[150px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer"
-          >
-            <option value="">Tous les types</option>
-            <option value="ovin">🐑 Ovins</option>
-            <option value="bovin">🐄 Bovins</option>
-            <option value="caprin">🐐 Caprins</option>
-            <option value="porcin">🐷 Porcins</option>
-          </select>
+          {!currentFilter && (
+            <select
+              value={currentFilter || ""}
+              onChange={(e) => navigateToType(e.target.value || null)}
+              className="w-[150px] px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 cursor-pointer"
+            >
+              <option value="">Tous les types</option>
+              <option value="ovin">🐑 Ovins</option>
+              <option value="bovin">🐄 Bovins</option>
+              <option value="caprin">🐐 Caprins</option>
+              <option value="porcin">🐷 Porcins</option>
+            </select>
+          )}
         </div>
       </div>
 
@@ -144,7 +301,11 @@ export default function AnimauxPageContent() {
         <div className="text-center py-16">
           <div className="text-6xl mb-4">🐾</div>
           <h3 className="text-2xl font-semibold mb-2">Aucun animal</h3>
-          <p className="text-gray-600 mb-6">Commencez par ajouter votre premier animal</p>
+          <p className="text-gray-600 mb-6">
+            {currentFilter
+              ? `Aucun ${getAnimalLabel(currentFilter).toLowerCase()} ${statusFilter ? `avec le statut "${statusFilter === "actif" ? "actif" : statusFilter === "vendu" ? "vendu" : statusFilter === "mort" ? "mort" : "réformé"}" ` : ""}trouvé`
+              : "Commencez par ajouter votre premier animal"}
+          </p>
           <button
             onClick={() => setShowAddModal(true)}
             className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-primary to-secondary rounded-lg hover:from-primary-dark hover:to-secondary-dark cursor-pointer"
@@ -152,17 +313,35 @@ export default function AnimauxPageContent() {
             + Ajouter un animal
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredAnimaux.map((animal) => (
-            <AnimalCard
-              key={animal.id}
-              animal={animal}
-              onEdit={() => router.push(`/animaux/${animal.id}`)}
-              onDelete={handleDelete}
-              onClick={(a) => router.push(`/animaux/${a.id}`)}
-            />
+      ) : currentFilter && groupedAnimaux ? (
+        /* Vue par espèce : groupé par année de naissance */
+        <div className="space-y-8">
+          {groupedAnimaux.map(({ year, animals }) => (
+            <div key={year}>
+              {/* Séparateur année */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                  <span className="text-lg">📅</span>
+                  <span className="font-bold text-lg">
+                    {year === "Non renseigné" ? year : `Nés en ${year}`}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    ({animals.length} {animals.length > 1 ? "animaux" : "animal"})
+                  </span>
+                </div>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+              {/* Grille des animaux de cette année */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {animals.map(renderAnimalCard)}
+              </div>
+            </div>
           ))}
+        </div>
+      ) : (
+        /* Vue normale : tous les animaux */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredAnimaux.map(renderAnimalCard)}
         </div>
       )}
 
@@ -197,7 +376,7 @@ export default function AnimauxPageContent() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
         title="Supprimer l'animal"
-        message={`Voulez-vous vraiment supprimer l'animal <strong>${deleteTarget?.nom || deleteTarget?.numeroBoucle}</strong> ?<br><br>Cette action est irréversible.`}
+        message={`Voulez-vous vraiment supprimer l'animal <strong>${deleteTarget?.nom || deleteTarget?.numeroBoucle || "cet animal"}</strong> ?<br><br>Cette action est irréversible.`}
         confirmText="Supprimer"
         cancelText="Annuler"
         danger

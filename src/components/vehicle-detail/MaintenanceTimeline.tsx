@@ -278,7 +278,7 @@ export default function MaintenanceTimeline({ vehicleId }: MaintenanceTimelinePr
   );
 }
 
-function MaintenanceForm({ entry, formRef }: { entry: MaintenanceEntry | null; formRef: React.RefObject<HTMLFormElement> }) {
+function MaintenanceForm({ entry, formRef }: { entry: MaintenanceEntry | null; formRef: React.RefObject<HTMLFormElement | null> }) {
   return (
     <form ref={formRef} className="grid gap-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

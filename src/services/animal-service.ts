@@ -6,12 +6,11 @@ const PATH = "animaux";
 
 export interface AnimalFormData {
   type: string;
-  numeroBoucle: string;
+  numeroBoucle?: string;
   nom?: string;
   sexe: string;
   race?: string;
   dateNaissance?: string;
-  poids?: string | number;
   statut?: string;
   commentaire?: string;
   numeroBouclePere?: string;
@@ -20,11 +19,12 @@ export interface AnimalFormData {
 
 export function validateAnimalData(data: AnimalFormData): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  if (!data.numeroBoucle || data.numeroBoucle.trim() === "") errors.push("Le numéro de boucle est obligatoire");
+  const hasNom = data.nom && data.nom.trim() !== "";
+  const hasNumeroBoucle = data.numeroBoucle && data.numeroBoucle.trim() !== "";
+  if (!hasNom && !hasNumeroBoucle) errors.push("Un nom ou un numéro de boucle est requis (au moins un des deux)");
   if (!data.type) errors.push("Le type d'animal est obligatoire");
   if (!["ovin", "bovin", "caprin", "porcin"].includes(data.type)) errors.push("Type d'animal invalide");
   if (!data.sexe || !["M", "F"].includes(data.sexe)) errors.push("Le sexe est obligatoire (M ou F)");
-  if (data.poids && (isNaN(Number(data.poids)) || Number(data.poids) <= 0)) errors.push("Le poids doit être un nombre positif");
   if (data.dateNaissance) {
     const date = new Date(data.dateNaissance);
     if (isNaN(date.getTime())) errors.push("Date de naissance invalide");
@@ -37,15 +37,16 @@ export async function createAnimal(data: AnimalFormData) {
   const validation = validateAnimalData(data);
   if (!validation.valid) return { success: false, error: validation.errors.join(", ") };
 
-  const existing = await firebaseService.getWhere<Animal>(PATH, "numeroBoucle", data.numeroBoucle);
-  if (existing.success && existing.data && existing.data.length > 0) {
-    return { success: false, error: "Ce numéro de boucle existe déjà" };
+  if (data.numeroBoucle && data.numeroBoucle.trim() !== "") {
+    const existing = await firebaseService.getWhere<Animal>(PATH, "numeroBoucle", data.numeroBoucle);
+    if (existing.success && existing.data && existing.data.length > 0) {
+      return { success: false, error: "Ce numéro de boucle existe déjà" };
+    }
   }
 
   const animalData: Record<string, unknown> = { ...data };
   if (data.dateNaissance) animalData.ageMois = calculateAge(data.dateNaissance);
   if (!data.statut) animalData.statut = "actif";
-  if (data.poids) animalData.poids = parseFloat(String(data.poids));
 
   return firebaseService.create(PATH, animalData);
 }
@@ -53,7 +54,6 @@ export async function createAnimal(data: AnimalFormData) {
 export async function updateAnimal(id: string, data: AnimalFormData) {
   const updates: Record<string, unknown> = { ...data };
   if (data.dateNaissance) updates.ageMois = calculateAge(data.dateNaissance);
-  if (data.poids) updates.poids = parseFloat(String(data.poids));
   return firebaseService.update(PATH, id, updates);
 }
 

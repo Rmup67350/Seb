@@ -51,22 +51,50 @@ export interface HistoryEntry {
 
 const WEIGHTS_PATH = (animalId: string) => `animaux-poids/${animalId}`;
 
+// Helper pour récupérer le dernier poids (pesée la plus récente)
+async function updateAnimalLatestWeight(animalId: string) {
+  const weightsResult = await firebaseService.getAll<WeightEntry>(WEIGHTS_PATH(animalId));
+  if (!weightsResult.success || !weightsResult.data || weightsResult.data.length === 0) {
+    // Pas de pesées, on met le poids à undefined
+    await firebaseService.update("animaux", animalId, { poids: null });
+    return;
+  }
+
+  // Trouver la pesée la plus récente
+  const sortedWeights = weightsResult.data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const latestWeight = sortedWeights[0];
+
+  // Mettre à jour le poids de l'animal avec la pesée la plus récente
+  await firebaseService.update("animaux", animalId, { poids: latestWeight.poids });
+}
+
 export async function addWeight(animalId: string, data: { poids: number; date: string; note?: string }) {
   const payload: Record<string, unknown> = { poids: data.poids, date: data.date, animalId };
   if (data.note) payload.note = data.note;
   const result = await firebaseService.create(WEIGHTS_PATH(animalId), payload);
   if (result.success) {
-    await firebaseService.update("animaux", animalId, { poids: data.poids });
+    // Mettre à jour le poids de l'animal avec le dernier poids
+    await updateAnimalLatestWeight(animalId);
   }
   return result;
 }
 
 export async function updateWeight(animalId: string, weightId: string, data: Record<string, unknown>) {
-  return firebaseService.update(WEIGHTS_PATH(animalId), weightId, data);
+  const result = await firebaseService.update(WEIGHTS_PATH(animalId), weightId, data);
+  if (result.success) {
+    // Après modification, recalculer le dernier poids
+    await updateAnimalLatestWeight(animalId);
+  }
+  return result;
 }
 
 export async function deleteWeight(animalId: string, weightId: string) {
-  return firebaseService.delete(WEIGHTS_PATH(animalId), weightId);
+  const result = await firebaseService.delete(WEIGHTS_PATH(animalId), weightId);
+  if (result.success) {
+    // Après suppression, recalculer le dernier poids
+    await updateAnimalLatestWeight(animalId);
+  }
+  return result;
 }
 
 export function listenWeights(animalId: string, callback: (data: WeightEntry[]) => void) {
