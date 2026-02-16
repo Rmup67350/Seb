@@ -19,7 +19,10 @@ interface NavSection {
 const sections: NavSection[] = [
   {
     title: "Principal",
-    items: [{ icon: "📊", label: "Tableau de bord", route: "/" }],
+    items: [
+      { icon: "📊", label: "Tableau de bord", route: "/" },
+      { icon: "📋", label: "Tâches", route: "/taches" },
+    ],
   },
   {
     title: "Cheptel",
