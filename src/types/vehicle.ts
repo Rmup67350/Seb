@@ -211,6 +211,29 @@ export interface MaintenanceTemplate {
   piecesTypiques?: string[];           // Liste de noms de pièces
 }
 
+// ==================== Relevés Compteurs ====================
+
+export type MeterReadingType = "kilometrage" | "heures";
+
+export interface MeterReading {
+  id: string;
+  vehicleId: string;
+
+  type: MeterReadingType;              // Type de relevé
+  valeur: number;                      // Valeur relevée (km ou heures)
+  date: string;                        // Date du relevé (ISO format)
+  commentaire?: string;                // Note optionnelle
+
+  dateCreation?: string;
+}
+
+export interface MeterReadingFormData {
+  type: MeterReadingType;
+  valeur: string;
+  date: string;
+  commentaire?: string;
+}
+
 // ==================== Formulaires ====================
 
 export interface VehicleFormData {
