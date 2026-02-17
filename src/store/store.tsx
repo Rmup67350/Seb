@@ -25,6 +25,21 @@ export interface Animal {
   derniereMAJ?: string;
 }
 
+export interface FicheSoin {
+  id: string;
+  animalId: string;
+  titre: string;
+  description?: string;
+  statut: "en_cours" | "cloture";
+  dateDebut: string;
+  dateFin?: string;
+  photoUrl?: string;
+  photoStoragePath?: string;
+  photoNom?: string;
+  dateCreation?: string;
+  derniereMAJ?: string;
+}
+
 export interface Alerte {
   id: string;
   titre: string;
@@ -44,7 +59,7 @@ interface Stats {
 
 interface AppState {
   animaux: Animal[];
-  traitements: unknown[];
+  traitements: FicheSoin[];
   couts: unknown[];
   ventes: unknown[];
   alertes: Alerte[];
@@ -60,7 +75,7 @@ interface AppState {
 
 type Action =
   | { type: "SET_ANIMAUX"; payload: Animal[] }
-  | { type: "SET_TRAITEMENTS"; payload: unknown[] }
+  | { type: "SET_TRAITEMENTS"; payload: FicheSoin[] }
   | { type: "SET_COUTS"; payload: unknown[] }
   | { type: "SET_VENTES"; payload: unknown[] }
   | { type: "SET_ALERTES"; payload: Alerte[] }
@@ -173,7 +188,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
     );
     listeners.push(
-      firebaseService.listen("traitements", (data) => dispatch({ type: "SET_TRAITEMENTS", payload: data }))
+      firebaseService.listen<FicheSoin>("traitements", (data) => dispatch({ type: "SET_TRAITEMENTS", payload: data }))
     );
     listeners.push(
       firebaseService.listen("couts", (data) => dispatch({ type: "SET_COUTS", payload: data }))
