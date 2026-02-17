@@ -178,7 +178,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <strong>
-                  {alert.vehicleNom} - {alert.titre}
+                  {alert.vehicleNom}{alert.titre ? ` - ${alert.titre}` : ""}
                 </strong>
                 <br />
                 <small>
