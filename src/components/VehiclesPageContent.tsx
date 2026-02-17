@@ -120,11 +120,11 @@ export default function VehiclesPageContent() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as VehicleType | "")}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 flex-1 md:flex-none min-w-0"
             >
               <option value="">Tous les types</option>
               <option value="voiture">🚗 {getVehicleTypeLabel("voiture")}</option>
@@ -137,7 +137,7 @@ export default function VehiclesPageContent() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 flex-1 md:flex-none min-w-0"
             >
               <option value="">Tous les statuts</option>
               <option value="actif">Actif</option>
@@ -146,15 +146,25 @@ export default function VehiclesPageContent() {
               <option value="vendu">Vendu</option>
               <option value="reforme">Réformé</option>
             </select>
+            {/* Bouton ajouter visible uniquement sur desktop */}
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors whitespace-nowrap"
+              className="hidden md:block px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors whitespace-nowrap"
             >
               + Ajouter un véhicule
             </button>
           </div>
         </div>
       </div>
+
+      {/* Bouton flottant "Ajouter" sur mobile */}
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-primary text-white rounded-full shadow-lg hover:bg-primary-dark transition-colors flex items-center justify-center text-2xl"
+        aria-label="Ajouter un véhicule"
+      >
+        +
+      </button>
 
       {/* Grille de cartes */}
       {filteredVehicles.length === 0 ? (

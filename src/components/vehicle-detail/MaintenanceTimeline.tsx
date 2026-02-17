@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { MaintenanceEntry, MaintenanceFormData } from "@/types/vehicle";
+import { useAppStore } from "@/store/store";
 import {
   addMaintenance,
   updateMaintenance,
@@ -19,6 +20,7 @@ import {
   getMaintenanceStatusColor,
   formatKilometrage,
   formatHeures,
+  formatAlertMessage,
   daysUntil,
   isExpired,
 } from "@/lib/vehicle-utils";
@@ -29,6 +31,7 @@ interface MaintenanceTimelineProps {
 
 export default function MaintenanceTimeline({ vehicleId }: MaintenanceTimelineProps) {
   const { showToast } = useToast();
+  const { state } = useAppStore();
   const [entries, setEntries] = useState<MaintenanceEntry[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
@@ -38,6 +41,11 @@ export default function MaintenanceTimeline({ vehicleId }: MaintenanceTimelinePr
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const factureFileRef = useRef<File | null>(null);
+
+  // Alertes de maintenance pour ce véhicule
+  const vehicleAlerts = useMemo(() => {
+    return state.maintenanceAlerts.filter((a) => a.vehicleId === vehicleId);
+  }, [state.maintenanceAlerts, vehicleId]);
 
   useEffect(() => {
     const unsubscribe = listenMaintenanceEntries(vehicleId, (data) => {
@@ -109,8 +117,42 @@ export default function MaintenanceTimeline({ vehicleId }: MaintenanceTimelinePr
 
   return (
     <div>
+      {/* Section Entretiens à prévoir */}
+      {vehicleAlerts.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">Entretiens à prévoir</h3>
+          <div className="space-y-2">
+            {vehicleAlerts.map((alert, index) => (
+              <div
+                key={`${alert.maintenanceId || index}-alert`}
+                className={`px-4 py-3 rounded-lg border-l-4 ${
+                  alert.urgent
+                    ? "bg-red-50 border-l-red-500 text-red-800"
+                    : "bg-orange-50 border-l-orange-500 text-orange-800"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <strong className="text-sm">{alert.titre || getMaintenanceTypeLabel(alert.type || "autre")}</strong>
+                    <p className="text-xs mt-0.5">
+                      {formatAlertMessage(alert.raison, alert.valeurActuelle, alert.valeurCible, alert.dateCible, alert.joursRestants)}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    alert.urgent ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"
+                  }`}>
+                    {alert.urgent ? "Urgent" : "A prévoir"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Historique */}
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Historique d'entretien</h3>
+        <h3 className="text-lg font-semibold">Historique d&apos;entretien</h3>
         <button
           onClick={() => setShowForm(true)}
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"

@@ -27,9 +27,94 @@ export default function DashboardPage() {
     [maintenanceAlerts]
   );
 
+  const allActiveTasks = useMemo(() => taches.filter((t) => t.statut !== "terminee"), [taches]);
+
   return (
     <div className="fade-in">
       <h1 className="text-2xl font-bold mb-6">📊 Tableau de bord</h1>
+
+      {/* Tâches à faire - TOUT EN HAUT */}
+      <div className="bg-white rounded-lg shadow-sm mb-6">
+        <div
+          className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => router.push("/taches")}
+        >
+          <span className="text-lg">📋</span>
+          <h3 className="text-base font-semibold m-0 flex-1">
+            Tâches à faire ({taskStats.aFaire + taskStats.enCours})
+          </h3>
+          {taskStats.enRetard > 0 && (
+            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+              {taskStats.enRetard} en retard
+            </span>
+          )}
+          <span className="text-gray-400 text-xs">Voir tout →</span>
+        </div>
+        <div className="px-4 py-3">
+          {urgentTasks.length > 0 ? (
+            <>
+              {urgentTasks.map((task) => {
+                const overdue = isTaskOverdue(task);
+                const dueSoon = isTaskDueSoon(task);
+                const days = getDaysUntilDue(task);
+                let echeanceText = "";
+                if (days !== null) {
+                  if (days < 0) echeanceText = `En retard (${Math.abs(days)}j)`;
+                  else if (days === 0) echeanceText = "Aujourd'hui";
+                  else echeanceText = `Dans ${days}j`;
+                }
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => router.push("/taches")}
+                    className={`px-3 py-2 rounded-md mb-1.5 border-l-4 cursor-pointer hover:opacity-80 transition-opacity text-sm ${
+                      overdue
+                        ? "bg-red-50 border-l-red-500 text-red-800"
+                        : dueSoon
+                        ? "bg-amber-50 border-l-amber-500 text-amber-800"
+                        : task.priorite === "haute"
+                        ? "bg-red-50 border-l-red-400 text-red-800"
+                        : task.priorite === "moyenne"
+                        ? "bg-amber-50 border-l-amber-400 text-amber-800"
+                        : "bg-green-50 border-l-green-400 text-green-800"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <strong>{task.titre}</strong>
+                      <div className="flex items-center gap-2 text-xs">
+                        {task.categorie && (
+                          <span className="bg-white/50 px-2 py-0.5 rounded-full">{task.categorie}</span>
+                        )}
+                        {echeanceText && (
+                          <span className="font-medium">{echeanceText}</span>
+                        )}
+                      </div>
+                    </div>
+                    {(task.animalNom || task.vehiculeNom || task.dateEcheance || task.assigneA) && (
+                      <small className="flex items-center gap-2 mt-1">
+                        {task.dateEcheance && <span>📅 {formatDate(task.dateEcheance)}</span>}
+                        {task.assigneA && <span>👤 {task.assigneA}</span>}
+                        {task.animalNom && <span>🐾 {task.animalNom}</span>}
+                        {task.vehiculeNom && <span>🚗 {task.vehiculeNom}</span>}
+                      </small>
+                    )}
+                  </div>
+                );
+              })}
+              {allActiveTasks.length > 5 && (
+                <button
+                  onClick={() => router.push("/taches")}
+                  className="text-sm text-primary hover:underline mt-2"
+                >
+                  Voir toutes les tâches ({allActiveTasks.length - 5} de plus)
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 py-2">Aucune tâche en cours</p>
+          )}
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -77,85 +162,6 @@ export default function DashboardPage() {
           onClick={() => router.push("/vehicules")}
         />
       </div>
-
-      {/* Tâches à faire */}
-      {(urgentTasks.length > 0 || taskStats.enRetard > 0) && (
-        <div className="bg-white rounded-lg shadow-sm mb-6">
-          <div
-            className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
-            onClick={() => router.push("/taches")}
-          >
-            <span className="text-lg">📋</span>
-            <h3 className="text-base font-semibold m-0 flex-1">
-              Tâches à faire ({taskStats.aFaire + taskStats.enCours})
-            </h3>
-            {taskStats.enRetard > 0 && (
-              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                {taskStats.enRetard} en retard
-              </span>
-            )}
-            <span className="text-gray-400 text-xs">Voir tout →</span>
-          </div>
-          <div className="px-4 py-3">
-            {urgentTasks.map((task) => {
-              const overdue = isTaskOverdue(task);
-              const dueSoon = isTaskDueSoon(task);
-              const days = getDaysUntilDue(task);
-              let echeanceText = "";
-              if (days !== null) {
-                if (days < 0) echeanceText = `En retard (${Math.abs(days)}j)`;
-                else if (days === 0) echeanceText = "Aujourd'hui";
-                else echeanceText = `Dans ${days}j`;
-              }
-              return (
-                <div
-                  key={task.id}
-                  onClick={() => router.push("/taches")}
-                  className={`px-3 py-2 rounded-md mb-1.5 border-l-4 cursor-pointer hover:opacity-80 transition-opacity text-sm ${
-                    overdue
-                      ? "bg-red-50 border-l-red-500 text-red-800"
-                      : dueSoon
-                      ? "bg-amber-50 border-l-amber-500 text-amber-800"
-                      : task.priorite === "haute"
-                      ? "bg-red-50 border-l-red-400 text-red-800"
-                      : task.priorite === "moyenne"
-                      ? "bg-amber-50 border-l-amber-400 text-amber-800"
-                      : "bg-green-50 border-l-green-400 text-green-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <strong>{task.titre}</strong>
-                    <div className="flex items-center gap-2 text-xs">
-                      {task.categorie && (
-                        <span className="bg-white/50 px-2 py-0.5 rounded-full">{task.categorie}</span>
-                      )}
-                      {echeanceText && (
-                        <span className="font-medium">{echeanceText}</span>
-                      )}
-                    </div>
-                  </div>
-                  {(task.animalNom || task.vehiculeNom || task.dateEcheance || task.assigneA) && (
-                    <small className="flex items-center gap-2 mt-1">
-                      {task.dateEcheance && <span>📅 {formatDate(task.dateEcheance)}</span>}
-                      {task.assigneA && <span>👤 {task.assigneA}</span>}
-                      {task.animalNom && <span>🐾 {task.animalNom}</span>}
-                      {task.vehiculeNom && <span>🚗 {task.vehiculeNom}</span>}
-                    </small>
-                  )}
-                </div>
-              );
-            })}
-            {taches.filter((t) => t.statut !== "terminee").length > 5 && (
-              <button
-                onClick={() => router.push("/taches")}
-                className="text-sm text-primary hover:underline mt-2"
-              >
-                Voir toutes les tâches ({taches.filter((t) => t.statut !== "terminee").length - 5} de plus)
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Alertes d'entretien */}
       {sortedMaintenanceAlerts.length > 0 && (
