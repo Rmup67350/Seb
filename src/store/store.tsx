@@ -56,21 +56,6 @@ export interface Composant {
   reference: string;
 }
 
-export interface Materiel {
-  id: string;
-  nom: string;
-  type: "vehicule" | "outil" | "machine" | "autre";
-  marque?: string;
-  modele?: string;
-  annee?: number;
-  immatriculation?: string;
-  statut: "actif" | "en_panne" | "vendu" | "reforme";
-  commentaire?: string;
-  composants: Composant[];
-  dateCreation?: string;
-  derniereMAJ?: string;
-}
-
 interface Stats {
   totalAnimaux: number;
   ovins: number;
@@ -84,7 +69,6 @@ interface AppState {
   user: User | null;
   authLoading: boolean;
   animaux: Animal[];
-  materiels: Materiel[];
   traitements: FicheSoin[];
   couts: unknown[];
   ventes: unknown[];
@@ -103,7 +87,6 @@ type Action =
   | { type: "SET_USER"; payload: User | null }
   | { type: "SET_AUTH_LOADING"; payload: boolean }
   | { type: "SET_ANIMAUX"; payload: Animal[] }
-  | { type: "SET_MATERIELS"; payload: Materiel[] }
   | { type: "SET_TRAITEMENTS"; payload: FicheSoin[] }
   | { type: "SET_COUTS"; payload: unknown[] }
   | { type: "SET_VENTES"; payload: unknown[] }
@@ -134,7 +117,6 @@ const initialState: AppState = {
   user: null,
   authLoading: true,
   animaux: [],
-  materiels: [],
   traitements: [],
   couts: [],
   ventes: [],
@@ -159,8 +141,6 @@ function reducer(state: AppState, action: Action): AppState {
       const animaux = action.payload;
       return { ...state, animaux, stats: computeStats(animaux) };
     }
-    case "SET_MATERIELS":
-      return { ...state, materiels: action.payload };
     case "SET_TRAITEMENTS":
       return { ...state, traitements: action.payload };
     case "SET_COUTS":
@@ -240,9 +220,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "SET_ANIMAUX", payload: animaux });
         dispatch({ type: "SET_LOADING", payload: false });
       })
-    );
-    listeners.push(
-      firebaseService.listen<Materiel>("materiels", (data) => dispatch({ type: "SET_MATERIELS", payload: data }))
     );
     listeners.push(
       firebaseService.listen<FicheSoin>("traitements", (data) => dispatch({ type: "SET_TRAITEMENTS", payload: data }))

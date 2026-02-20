@@ -49,7 +49,6 @@ const sections: NavSection[] = [
     title: "Autres",
     items: [
       { icon: "📊", label: "Rapports", route: "/rapports" },
-      { icon: "🚜", label: "Matériel", route: "/materiel" },
     ],
   },
 ];
