@@ -15,6 +15,8 @@ import type {
   MaintenanceAlert,
   Vehicle,
   PartUsed,
+  MeterReading,
+  MeterReadingFormData,
 } from "@/types/vehicle";
 import type { Unsubscribe } from "firebase/database";
 
@@ -25,11 +27,7 @@ const MAINTENANCE_PATH = "vehicules-maintenance";
 export function validateMaintenanceData(data: MaintenanceFormData): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (!data.type) errors.push("Le type d'entretien est obligatoire");
-  if (!data.titre?.trim()) errors.push("Le titre est obligatoire");
-  if (!data.statut) errors.push("Le statut est obligatoire");
-
-  // Validation numérique
+  // Validation numérique (aucun champ n'est obligatoire)
   if (data.kilometrageEffectue && isNaN(Number(data.kilometrageEffectue))) {
     errors.push("Le kilométrage doit être un nombre valide");
   }
@@ -42,23 +40,8 @@ export function validateMaintenanceData(data: MaintenanceFormData): { valid: boo
   if (data.prochainesHeures && isNaN(Number(data.prochainesHeures))) {
     errors.push("Les prochaines heures doivent être un nombre valide");
   }
-  if (data.intervalKm && isNaN(Number(data.intervalKm))) {
-    errors.push("L'intervalle kilométrage doit être un nombre valide");
-  }
-  if (data.intervalMois && isNaN(Number(data.intervalMois))) {
-    errors.push("L'intervalle en mois doit être un nombre valide");
-  }
-  if (data.intervalHeures && isNaN(Number(data.intervalHeures))) {
-    errors.push("L'intervalle en heures doit être un nombre valide");
-  }
-  if (data.coutMain && isNaN(Number(data.coutMain))) {
-    errors.push("Le coût main d'œuvre doit être un nombre valide");
-  }
-  if (data.coutPieces && isNaN(Number(data.coutPieces))) {
-    errors.push("Le coût des pièces doit être un nombre valide");
-  }
   if (data.coutTotal && isNaN(Number(data.coutTotal))) {
-    errors.push("Le coût total doit être un nombre valide");
+    errors.push("Le coût doit être un nombre valide");
   }
 
   return { valid: errors.length === 0, errors };
@@ -69,19 +52,16 @@ function formDataToMaintenance(
   formData: MaintenanceFormData,
   pieces?: PartUsed[]
 ): Omit<MaintenanceEntry, "id" | "dateCreation" | "derniereMAJ"> {
-  const coutMain = formData.coutMain ? Number(formData.coutMain) : undefined;
-  const coutPieces = formData.coutPieces ? Number(formData.coutPieces) : undefined;
-  const coutTotal = formData.coutTotal ? Number(formData.coutTotal) : (coutMain || 0) + (coutPieces || 0);
+  const coutTotal = formData.coutTotal ? Number(formData.coutTotal) : undefined;
 
   return {
     vehicleId,
-    type: formData.type,
-    titre: formData.titre.trim(),
+    type: formData.type || undefined,
+    titre: formData.titre?.trim() || undefined,
     description: formData.description?.trim() || undefined,
-    statut: formData.statut,
+    statut: formData.statut || "termine",
 
     dateEffectuee: formData.dateEffectuee || undefined,
-    datePlanifiee: formData.datePlanifiee || undefined,
     kilometrageEffectue: formData.kilometrageEffectue ? Number(formData.kilometrageEffectue) : undefined,
     heuresEffectuees: formData.heuresEffectuees ? Number(formData.heuresEffectuees) : undefined,
 
@@ -89,15 +69,9 @@ function formDataToMaintenance(
     prochaineDate: formData.prochaineDate || undefined,
     prochainesHeures: formData.prochainesHeures ? Number(formData.prochainesHeures) : undefined,
 
-    intervalKm: formData.intervalKm ? Number(formData.intervalKm) : undefined,
-    intervalMois: formData.intervalMois ? Number(formData.intervalMois) : undefined,
-    intervalHeures: formData.intervalHeures ? Number(formData.intervalHeures) : undefined,
-
     garage: formData.garage?.trim() || undefined,
 
     pieces: pieces || undefined,
-    coutMain,
-    coutPieces,
     coutTotal,
   };
 }
@@ -145,6 +119,25 @@ export async function deleteMaintenance(maintenanceId: string): Promise<Firebase
   return await firebaseService.delete(MAINTENANCE_PATH, maintenanceId);
 }
 
+export async function uploadMaintenanceFacture(maintenanceId: string, vehicleId: string, file: File): Promise<FirebaseResult> {
+  const storagePath = `vehicules/${vehicleId}/factures/${Date.now()}_${file.name}`;
+  const uploadResult: StorageResult = await uploadFile(storagePath, file);
+  if (!uploadResult.success) return { success: false, error: uploadResult.error };
+
+  return firebaseService.update(MAINTENANCE_PATH, maintenanceId, {
+    facture: uploadResult.url,
+    factureStoragePath: storagePath,
+  });
+}
+
+export async function deleteMaintenanceFacture(maintenanceId: string, storagePath: string): Promise<FirebaseResult> {
+  await deleteFile(storagePath);
+  return firebaseService.update(MAINTENANCE_PATH, maintenanceId, {
+    facture: null,
+    factureStoragePath: null,
+  });
+}
+
 export function listenMaintenanceEntries(
   vehicleId: string,
   callback: (entries: MaintenanceEntry[]) => void
@@ -156,7 +149,8 @@ export function listenMaintenanceEntries(
 
 export function calculateMaintenanceAlerts(
   vehicles: Vehicle[],
-  allMaintenance: MaintenanceEntry[]
+  allMaintenance: MaintenanceEntry[],
+  allReadings?: MeterReading[]
 ): MaintenanceAlert[] {
   const alerts: MaintenanceAlert[] = [];
   const now = new Date();
@@ -178,7 +172,7 @@ export function calculateMaintenanceAlerts(
         if (daysRemaining <= 30) {
           alerts.push({
             vehicleId: vehicle.id,
-            vehicleNom: vehicle.nom || vehicle.plaqueImmatriculation || `Véhicule ${vehicle.id}`,
+            vehicleNom: vehicle.plaqueImmatriculation || (vehicle.marque && vehicle.modele ? `${vehicle.marque} ${vehicle.modele}` : `Véhicule ${vehicle.id}`),
             maintenanceId: maintenance.id,
             type: maintenance.type,
             titre: maintenance.titre,
@@ -196,7 +190,7 @@ export function calculateMaintenanceAlerts(
         if (kmRemaining <= 1000) {
           alerts.push({
             vehicleId: vehicle.id,
-            vehicleNom: vehicle.nom || vehicle.plaqueImmatriculation || `Véhicule ${vehicle.id}`,
+            vehicleNom: vehicle.plaqueImmatriculation || (vehicle.marque && vehicle.modele ? `${vehicle.marque} ${vehicle.modele}` : `Véhicule ${vehicle.id}`),
             maintenanceId: maintenance.id,
             type: maintenance.type,
             titre: maintenance.titre,
@@ -214,7 +208,7 @@ export function calculateMaintenanceAlerts(
         if (heuresRemaining <= 50) {
           alerts.push({
             vehicleId: vehicle.id,
-            vehicleNom: vehicle.nom || vehicle.plaqueImmatriculation || `Véhicule ${vehicle.id}`,
+            vehicleNom: vehicle.plaqueImmatriculation || (vehicle.marque && vehicle.modele ? `${vehicle.marque} ${vehicle.modele}` : `Véhicule ${vehicle.id}`),
             maintenanceId: maintenance.id,
             type: maintenance.type,
             titre: maintenance.titre,
@@ -227,26 +221,6 @@ export function calculateMaintenanceAlerts(
       }
     });
 
-    // Alertes basées sur les documents du véhicule
-    if (vehicle.dateExpAssurance) {
-      const expDate = new Date(vehicle.dateExpAssurance);
-      const diffTime = expDate.getTime() - now.getTime();
-      const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (daysRemaining <= 30) {
-        alerts.push({
-          vehicleId: vehicle.id,
-          vehicleNom: vehicle.nom || vehicle.plaqueImmatriculation || `Véhicule ${vehicle.id}`,
-          type: "autre",
-          titre: "Renouvellement assurance",
-          raison: "date",
-          dateCible: vehicle.dateExpAssurance,
-          joursRestants: daysRemaining,
-          urgent: daysRemaining <= 7 || daysRemaining < 0,
-        });
-      }
-    }
-
     if (vehicle.dateProchainCT) {
       const ctDate = new Date(vehicle.dateProchainCT);
       const diffTime = ctDate.getTime() - now.getTime();
@@ -255,13 +229,48 @@ export function calculateMaintenanceAlerts(
       if (daysRemaining <= 60) {
         alerts.push({
           vehicleId: vehicle.id,
-          vehicleNom: vehicle.nom || vehicle.plaqueImmatriculation || `Véhicule ${vehicle.id}`,
+          vehicleNom: vehicle.plaqueImmatriculation || (vehicle.marque && vehicle.modele ? `${vehicle.marque} ${vehicle.modele}` : `Véhicule ${vehicle.id}`),
           type: "controle_technique",
           titre: "Contrôle technique",
           raison: "date",
           dateCible: vehicle.dateProchainCT,
           joursRestants: daysRemaining,
           urgent: daysRemaining <= 14 || daysRemaining < 0,
+        });
+      }
+    }
+
+    // Alerte rappel de relevé compteur (2x par an = tous les 6 mois)
+    if (allReadings) {
+      const vehicleReadings = allReadings
+        .filter((r) => r.vehicleId === vehicle.id)
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+      const lastReading = vehicleReadings[0];
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      const needsReading = !lastReading || new Date(lastReading.date) < sixMonthsAgo;
+
+      if (needsReading) {
+        const hasKm = vehicle.kilometrage !== undefined && vehicle.kilometrage !== null;
+        const hasHeures = vehicle.heuresUtilisation !== undefined && vehicle.heuresUtilisation !== null;
+        const label = hasKm && hasHeures ? "km/heures" : hasKm ? "kilométrage" : hasHeures ? "heures" : "km/heures";
+
+        let daysSinceLastReading: number | undefined;
+        if (lastReading) {
+          const lastDate = new Date(lastReading.date);
+          daysSinceLastReading = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        alerts.push({
+          vehicleId: vehicle.id,
+          vehicleNom: vehicle.plaqueImmatriculation || (vehicle.marque && vehicle.modele ? `${vehicle.marque} ${vehicle.modele}` : `Véhicule ${vehicle.id}`),
+          type: "autre",
+          titre: `Relevé ${label} à faire`,
+          raison: "date",
+          joursRestants: lastReading ? -(daysSinceLastReading! - 182) : -182,
+          urgent: !lastReading || daysSinceLastReading! > 210,
         });
       }
     }
@@ -426,6 +435,73 @@ export async function deleteFuelEntry(fuelId: string): Promise<FirebaseResult> {
 
 export function listenFuelEntries(vehicleId: string, callback: (entries: FuelEntry[]) => void): Unsubscribe {
   return firebaseService.listenWhere<FuelEntry>(FUEL_PATH, "vehicleId", vehicleId, callback);
+}
+
+// ==================== RELEVÉS COMPTEURS ====================
+
+const METER_READINGS_PATH = "vehicules-releves";
+
+export function validateMeterReadingData(data: MeterReadingFormData): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!data.type) errors.push("Le type de relevé est obligatoire");
+  if (!data.valeur || isNaN(Number(data.valeur)) || Number(data.valeur) < 0) {
+    errors.push("La valeur doit être un nombre positif");
+  }
+  if (!data.date) errors.push("La date est obligatoire");
+  return { valid: errors.length === 0, errors };
+}
+
+export async function addMeterReading(
+  vehicleId: string,
+  formData: MeterReadingFormData
+): Promise<FirebaseResult> {
+  const validation = validateMeterReadingData(formData);
+  if (!validation.valid) {
+    return { success: false, error: validation.errors.join(", ") };
+  }
+
+  const valeur = Number(formData.valeur);
+
+  const readingData: Omit<MeterReading, "id" | "dateCreation"> = {
+    vehicleId,
+    type: formData.type,
+    valeur,
+    date: formData.date,
+    commentaire: formData.commentaire?.trim() || undefined,
+  };
+
+  // Créer le relevé
+  const result = await firebaseService.create(METER_READINGS_PATH, readingData);
+
+  if (result.success) {
+    // Mettre à jour le compteur du véhicule
+    const vehicleUpdate: Record<string, unknown> = {};
+    if (formData.type === "kilometrage") {
+      vehicleUpdate.kilometrage = valeur;
+    } else {
+      vehicleUpdate.heuresUtilisation = valeur;
+    }
+    await firebaseService.update("vehicules", vehicleId, vehicleUpdate);
+  }
+
+  return result;
+}
+
+export async function deleteMeterReading(readingId: string): Promise<FirebaseResult> {
+  return await firebaseService.delete(METER_READINGS_PATH, readingId);
+}
+
+export function listenMeterReadings(
+  vehicleId: string,
+  callback: (readings: MeterReading[]) => void
+): Unsubscribe {
+  return firebaseService.listenWhere<MeterReading>(METER_READINGS_PATH, "vehicleId", vehicleId, callback);
+}
+
+export function listenAllMeterReadings(
+  callback: (readings: MeterReading[]) => void
+): Unsubscribe {
+  return firebaseService.listen<MeterReading>(METER_READINGS_PATH, callback);
 }
 
 // Calcul de la consommation moyenne

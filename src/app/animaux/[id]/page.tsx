@@ -11,19 +11,20 @@ import AnimalInfoGrid from "@/components/animal-detail/AnimalInfoGrid";
 import ParentCards from "@/components/animal-detail/ParentCards";
 import PhotoGallery from "@/components/animal-detail/PhotoGallery";
 import WeightChart from "@/components/animal-detail/WeightChart";
-import VetDocuments from "@/components/animal-detail/VetDocuments";
 import HistoryTimeline from "@/components/animal-detail/HistoryTimeline";
+import CareRecords from "@/components/animal-detail/CareRecords";
 import { updateAnimal, deleteAnimal as deleteAnimalService, validateAnimalData, type AnimalFormData } from "@/services/animal-service";
 import {
-  listenWeights, listenPhotos, listenDocuments, listenHistory,
-  type WeightEntry, type AnimalPhoto, type AnimalDocument, type HistoryEntry,
+  listenWeights, listenPhotos, listenHistory, listenSoins,
+  type WeightEntry, type AnimalPhoto, type HistoryEntry,
 } from "@/services/animal-detail-service";
+import type { FicheSoin } from "@/store/store";
 
 const TABS = [
   { id: "info", label: "Infos" },
   { id: "photos", label: "Photos" },
   { id: "poids", label: "Poids" },
-  { id: "documents", label: "Documents" },
+  { id: "soins", label: "Soins" },
   { id: "historique", label: "Historique" },
 ] as const;
 
@@ -44,8 +45,8 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   // Sub-data
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [photos, setPhotos] = useState<AnimalPhoto[]>([]);
-  const [documents, setDocuments] = useState<AnimalDocument[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [soins, setSoins] = useState<FicheSoin[]>([]);
 
   const animal = state.animaux.find((a) => a.id === id) || null;
 
@@ -55,8 +56,8 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     const unsubs = [
       listenWeights(id, setWeights),
       listenPhotos(id, setPhotos),
-      listenDocuments(id, setDocuments),
       listenHistory(id, setHistory),
+      listenSoins(id, setSoins),
     ];
     return () => unsubs.forEach((unsub) => unsub());
   }, [id]);
@@ -162,7 +163,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
       )}
       {activeTab === "photos" && <PhotoGallery animalId={id} photos={photos} />}
       {activeTab === "poids" && <WeightChart animalId={id} animalType={animal.type} weights={weights} />}
-      {activeTab === "documents" && <VetDocuments animalId={id} documents={documents} />}
+      {activeTab === "soins" && <CareRecords animalId={id} soins={soins} />}
       {activeTab === "historique" && <HistoryTimeline animalId={id} history={history} />}
 
       {/* Edit modal */}

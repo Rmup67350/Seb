@@ -19,7 +19,10 @@ interface NavSection {
 const sections: NavSection[] = [
   {
     title: "Principal",
-    items: [{ icon: "📊", label: "Tableau de bord", route: "/" }],
+    items: [
+      { icon: "📊", label: "Tableau de bord", route: "/" },
+      { icon: "📋", label: "Tâches", route: "/taches" },
+    ],
   },
   {
     title: "Cheptel",
@@ -32,7 +35,7 @@ const sections: NavSection[] = [
     title: "Parc Machine",
     items: [
       { icon: "🚗", label: "Véhicules", route: "/vehicules" },
-      { icon: "🔧", label: "Entretiens", route: "/vehicules?tab=entretien" },
+      { icon: "🔧", label: "Entretiens", route: "/entretiens" },
     ],
   },
   {

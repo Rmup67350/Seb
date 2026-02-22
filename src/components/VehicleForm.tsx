@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import type { Vehicle } from "@/types/vehicle";
 
 interface VehicleFormProps {
@@ -8,9 +9,74 @@ interface VehicleFormProps {
 }
 
 export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(vehicle?.photoUrl || null);
+  const [clearPhoto, setClearPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Reset photo state when the edited vehicle changes
+  useEffect(() => {
+    setPreviewUrl(vehicle?.photoUrl || null);
+    setClearPhoto(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [vehicle?.id]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    setClearPhoto(false);
+  };
+
+  const handleClearPhoto = () => {
+    setPreviewUrl(null);
+    setClearPhoto(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <form ref={formRef} className="grid gap-4">
-      {/* Type et Nom */}
+      {/* Photo principale */}
+      <div>
+        <label className="block mb-1 text-sm font-medium text-gray-700">Photo du véhicule</label>
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+            {previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={previewUrl} alt="Aperçu" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-3xl">📷</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="cursor-pointer px-3 py-1.5 text-sm bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors">
+              {previewUrl ? "Changer la photo" : "Choisir une photo"}
+              <input
+                ref={fileInputRef}
+                type="file"
+                name="photo"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+            {previewUrl && (
+              <button
+                type="button"
+                onClick={handleClearPhoto}
+                className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50 transition-colors"
+              >
+                Supprimer la photo
+              </button>
+            )}
+            <p className="text-xs text-gray-500">JPG, PNG, WebP · max 10 Mo</p>
+          </div>
+        </div>
+        {/* Signal to parent that the user wants to clear the existing photo */}
+        <input type="hidden" name="clearPhoto" value={clearPhoto ? "1" : "0"} />
+      </div>
+
+      {/* Type et Statut */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">
@@ -32,14 +98,21 @@ export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
           </select>
         </div>
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Nom / Identification</label>
-          <input
-            type="text"
-            name="nom"
-            defaultValue={vehicle?.nom || ""}
-            placeholder="Tracteur rouge"
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Statut <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="statut"
+            defaultValue={vehicle?.statut || "actif"}
+            required
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
+          >
+            <option value="actif">✅ Actif</option>
+            <option value="en_reparation">🔧 En réparation</option>
+            <option value="stocke">📦 Stocké</option>
+            <option value="vendu">💰 Vendu</option>
+            <option value="reforme">❌ Réformé</option>
+          </select>
         </div>
       </div>
 
@@ -67,40 +140,7 @@ export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
         </div>
       </div>
 
-      {/* Année et Statut */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Année</label>
-          <input
-            type="number"
-            name="annee"
-            defaultValue={vehicle?.annee || ""}
-            placeholder="2020"
-            min="1900"
-            max={new Date().getFullYear() + 1}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
-        </div>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
-            Statut <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="statut"
-            defaultValue={vehicle?.statut || "actif"}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          >
-            <option value="actif">✅ Actif</option>
-            <option value="en_reparation">🔧 En réparation</option>
-            <option value="stocke">📦 Stocké</option>
-            <option value="vendu">💰 Vendu</option>
-            <option value="reforme">❌ Réformé</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Plaque et N° série */}
+      {/* Plaque et Date mise en circulation */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">Plaque d&apos;immatriculation</label>
@@ -113,12 +153,11 @@ export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
           />
         </div>
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Numéro de série (VIN)</label>
+          <label className="block mb-1 text-sm font-medium text-gray-700">Date de mise en circulation</label>
           <input
-            type="text"
-            name="numeroSerie"
-            defaultValue={vehicle?.numeroSerie || ""}
-            placeholder="VF1RFD0..."
+            type="date"
+            name="dateMiseEnCirculation"
+            defaultValue={vehicle?.dateMiseEnCirculation || ""}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
         </div>
@@ -151,34 +190,8 @@ export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
         </div>
       </div>
 
-      {/* Carburant et Puissance */}
+      {/* Puissance, Valeur achat, Date achat */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Type de carburant</label>
-          <select
-            name="typeCarburant"
-            defaultValue={vehicle?.typeCarburant || ""}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          >
-            <option value="">Sélectionnez...</option>
-            <option value="essence">Essence</option>
-            <option value="diesel">Diesel</option>
-            <option value="electrique">Électrique</option>
-            <option value="hybride">Hybride</option>
-            <option value="gpl">GPL</option>
-          </select>
-        </div>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Capacité réservoir (L)</label>
-          <input
-            type="number"
-            name="capaciteReservoir"
-            defaultValue={vehicle?.capaciteReservoir || ""}
-            placeholder="50"
-            min="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
-        </div>
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">Puissance (CV)</label>
           <input
@@ -190,10 +203,6 @@ export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
         </div>
-      </div>
-
-      {/* Valeurs financières */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">Valeur d&apos;achat (€)</label>
           <input
@@ -215,41 +224,10 @@ export default function VehicleForm({ vehicle, formRef }: VehicleFormProps) {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
         </div>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Valeur actuelle (€)</label>
-          <input
-            type="number"
-            name="valeurActuelle"
-            defaultValue={vehicle?.valeurActuelle || ""}
-            placeholder="12000"
-            min="0"
-            step="0.01"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
-        </div>
       </div>
 
-      {/* Assurance et CT */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">N° police d&apos;assurance</label>
-          <input
-            type="text"
-            name="numeroPoliceAssurance"
-            defaultValue={vehicle?.numeroPoliceAssurance || ""}
-            placeholder="POL123456"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
-        </div>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">Expiration assurance</label>
-          <input
-            type="date"
-            name="dateExpAssurance"
-            defaultValue={vehicle?.dateExpAssurance || ""}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
-          />
-        </div>
+      {/* Prochain CT */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">Prochain contrôle technique</label>
           <input

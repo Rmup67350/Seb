@@ -1,6 +1,8 @@
 import firebaseService from "@/lib/firebase-service";
 import { uploadFile, deleteFile } from "@/lib/firebase-storage";
 
+import type { FicheSoin } from "@/store/store";
+
 // ============ Interfaces ============
 
 export interface WeightEntry {
@@ -179,4 +181,82 @@ export async function deleteHistoryEntry(animalId: string, entryId: string) {
 
 export function listenHistory(animalId: string, callback: (data: HistoryEntry[]) => void) {
   return firebaseService.listen<HistoryEntry>(HISTORY_PATH(animalId), callback);
+}
+
+// ============ Fiches Soins (Traitements) ============
+
+const SOINS_PATH = "traitements";
+
+export async function addSoin(
+  animalId: string,
+  data: { titre: string; description?: string; dateDebut: string },
+  file?: File
+) {
+  const payload: Record<string, unknown> = {
+    animalId,
+    titre: data.titre,
+    dateDebut: data.dateDebut,
+    statut: "en_cours",
+  };
+  if (data.description) payload.description = data.description;
+
+  if (file) {
+    const storagePath = `animaux/${animalId}/soins/${Date.now()}_${file.name}`;
+    const uploadResult = await uploadFile(storagePath, file);
+    if (!uploadResult.success) return uploadResult;
+    payload.photoUrl = uploadResult.url!;
+    payload.photoStoragePath = storagePath;
+    payload.photoNom = file.name;
+  }
+
+  return firebaseService.create(SOINS_PATH, payload);
+}
+
+export async function updateSoin(
+  soinId: string,
+  data: Record<string, unknown>,
+  file?: File,
+  oldStoragePath?: string
+) {
+  // If a new file is uploaded, handle storage
+  if (file) {
+    const animalId = data.animalId as string;
+    const storagePath = `animaux/${animalId}/soins/${Date.now()}_${file.name}`;
+    const uploadResult = await uploadFile(storagePath, file);
+    if (!uploadResult.success) return uploadResult;
+    // Delete old file if exists
+    if (oldStoragePath) {
+      await deleteFile(oldStoragePath);
+    }
+    data.photoUrl = uploadResult.url!;
+    data.photoStoragePath = storagePath;
+    data.photoNom = file.name;
+  }
+
+  return firebaseService.update(SOINS_PATH, soinId, data);
+}
+
+export async function cloturerSoin(soinId: string) {
+  return firebaseService.update(SOINS_PATH, soinId, {
+    statut: "cloture",
+    dateFin: new Date().toISOString().split("T")[0],
+  });
+}
+
+export async function rouvrirSoin(soinId: string) {
+  return firebaseService.update(SOINS_PATH, soinId, {
+    statut: "en_cours",
+    dateFin: null,
+  });
+}
+
+export async function deleteSoin(soinId: string, storagePath?: string) {
+  if (storagePath) {
+    await deleteFile(storagePath);
+  }
+  return firebaseService.delete(SOINS_PATH, soinId);
+}
+
+export function listenSoins(animalId: string, callback: (data: FicheSoin[]) => void) {
+  return firebaseService.listenWhere<FicheSoin>(SOINS_PATH, "animalId", animalId, callback);
 }

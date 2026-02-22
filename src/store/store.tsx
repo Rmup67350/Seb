@@ -2,8 +2,11 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from "react";
 import firebaseService from "@/lib/firebase-service";
+import { onAuthChange } from "@/lib/auth-service";
 import type { Unsubscribe } from "firebase/database";
-import type { Vehicle, MaintenanceAlert, MaintenanceEntry } from "@/types/vehicle";
+import type { User } from "firebase/auth";
+import type { Vehicle, MaintenanceAlert, MaintenanceEntry, MeterReading } from "@/types/vehicle";
+import type { Task } from "@/types/task";
 import { calculateMaintenanceAlerts } from "@/services/vehicle-detail-service";
 
 export interface Animal {
@@ -24,12 +27,33 @@ export interface Animal {
   derniereMAJ?: string;
 }
 
+export interface FicheSoin {
+  id: string;
+  animalId: string;
+  titre: string;
+  description?: string;
+  statut: "en_cours" | "cloture";
+  dateDebut: string;
+  dateFin?: string;
+  photoUrl?: string;
+  photoStoragePath?: string;
+  photoNom?: string;
+  dateCreation?: string;
+  derniereMAJ?: string;
+}
+
 export interface Alerte {
   id: string;
   titre: string;
   description: string;
   priorite: "haute" | "moyenne" | "basse";
   statut: "active" | "resolue";
+}
+
+export interface Composant {
+  id: string;
+  nom: string;
+  reference: string;
 }
 
 interface Stats {
@@ -42,28 +66,36 @@ interface Stats {
 }
 
 interface AppState {
+  user: User | null;
+  authLoading: boolean;
   animaux: Animal[];
-  traitements: unknown[];
+  traitements: FicheSoin[];
   couts: unknown[];
   ventes: unknown[];
   alertes: Alerte[];
   vehicles: Vehicle[];
   maintenanceEntries: MaintenanceEntry[];
   maintenanceAlerts: MaintenanceAlert[];
+  meterReadings: MeterReading[];
+  taches: Task[];
   stats: Stats;
   loading: boolean;
   sidebarOpen: boolean;
 }
 
 type Action =
+  | { type: "SET_USER"; payload: User | null }
+  | { type: "SET_AUTH_LOADING"; payload: boolean }
   | { type: "SET_ANIMAUX"; payload: Animal[] }
-  | { type: "SET_TRAITEMENTS"; payload: unknown[] }
+  | { type: "SET_TRAITEMENTS"; payload: FicheSoin[] }
   | { type: "SET_COUTS"; payload: unknown[] }
   | { type: "SET_VENTES"; payload: unknown[] }
   | { type: "SET_ALERTES"; payload: Alerte[] }
   | { type: "SET_VEHICLES"; payload: Vehicle[] }
   | { type: "SET_MAINTENANCE_ENTRIES"; payload: MaintenanceEntry[] }
   | { type: "SET_MAINTENANCE_ALERTS"; payload: MaintenanceAlert[] }
+  | { type: "SET_METER_READINGS"; payload: MeterReading[] }
+  | { type: "SET_TACHES"; payload: Task[] }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "TOGGLE_SIDEBAR" }
   | { type: "CLOSE_SIDEBAR" }
@@ -82,6 +114,8 @@ function computeStats(animaux: Animal[]): Stats {
 }
 
 const initialState: AppState = {
+  user: null,
+  authLoading: true,
   animaux: [],
   traitements: [],
   couts: [],
@@ -90,6 +124,8 @@ const initialState: AppState = {
   vehicles: [],
   maintenanceEntries: [],
   maintenanceAlerts: [],
+  meterReadings: [],
+  taches: [],
   stats: { totalAnimaux: 0, ovins: 0, bovins: 0, caprins: 0, porcins: 0, profitGlobal: 0 },
   loading: true,
   sidebarOpen: false,
@@ -97,6 +133,10 @@ const initialState: AppState = {
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case "SET_USER":
+      return { ...state, user: action.payload };
+    case "SET_AUTH_LOADING":
+      return { ...state, authLoading: action.payload };
     case "SET_ANIMAUX": {
       const animaux = action.payload;
       return { ...state, animaux, stats: computeStats(animaux) };
@@ -113,13 +153,20 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, vehicles: action.payload };
     case "SET_MAINTENANCE_ENTRIES": {
       const maintenanceEntries = action.payload;
-      const alerts = calculateMaintenanceAlerts(state.vehicles, maintenanceEntries);
+      const alerts = calculateMaintenanceAlerts(state.vehicles, maintenanceEntries, state.meterReadings);
       return { ...state, maintenanceEntries, maintenanceAlerts: alerts };
     }
     case "SET_MAINTENANCE_ALERTS":
       return { ...state, maintenanceAlerts: action.payload };
+    case "SET_METER_READINGS": {
+      const meterReadings = action.payload;
+      const alertsWithReadings = calculateMaintenanceAlerts(state.vehicles, state.maintenanceEntries, meterReadings);
+      return { ...state, meterReadings, maintenanceAlerts: alertsWithReadings };
+    }
+    case "SET_TACHES":
+      return { ...state, taches: action.payload };
     case "UPDATE_MAINTENANCE_ALERTS": {
-      const alerts = calculateMaintenanceAlerts(state.vehicles, state.maintenanceEntries);
+      const alerts = calculateMaintenanceAlerts(state.vehicles, state.maintenanceEntries, state.meterReadings);
       return { ...state, maintenanceAlerts: alerts };
     }
     case "SET_LOADING":
@@ -149,7 +196,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const toggleSidebar = useCallback(() => dispatch({ type: "TOGGLE_SIDEBAR" }), []);
   const closeSidebar = useCallback(() => dispatch({ type: "CLOSE_SIDEBAR" }), []);
 
+  // Auth listener
   useEffect(() => {
+    const unsub = onAuthChange((user) => {
+      dispatch({ type: "SET_USER", payload: user });
+      dispatch({ type: "SET_AUTH_LOADING", payload: false });
+    });
+    return () => unsub();
+  }, []);
+
+  // Data listeners - only when authenticated
+  useEffect(() => {
+    if (!state.user) {
+      dispatch({ type: "SET_LOADING", payload: false });
+      return;
+    }
+
+    dispatch({ type: "SET_LOADING", payload: true });
     const listeners: Unsubscribe[] = [];
 
     listeners.push(
@@ -159,7 +222,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
     );
     listeners.push(
-      firebaseService.listen("traitements", (data) => dispatch({ type: "SET_TRAITEMENTS", payload: data }))
+      firebaseService.listen<FicheSoin>("traitements", (data) => dispatch({ type: "SET_TRAITEMENTS", payload: data }))
     );
     listeners.push(
       firebaseService.listen("couts", (data) => dispatch({ type: "SET_COUTS", payload: data }))
@@ -181,13 +244,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "SET_MAINTENANCE_ENTRIES", payload: data })
       )
     );
+    listeners.push(
+      firebaseService.listen<MeterReading>("vehicules-releves", (data) =>
+        dispatch({ type: "SET_METER_READINGS", payload: data })
+      )
+    );
+    listeners.push(
+      firebaseService.listen<Task>("taches", (data) =>
+        dispatch({ type: "SET_TACHES", payload: data })
+      )
+    );
 
     listenersRef.current = listeners;
 
     return () => {
       listenersRef.current.forEach((unsub) => unsub());
     };
-  }, []);
+  }, [state.user]);
 
   return (
     <AppContext.Provider value={{ state, dispatch, toggleSidebar, closeSidebar }}>

@@ -8,23 +8,19 @@ export type VehicleType = "voiture" | "moto" | "quad" | "tracteur" | "utilitaire
 
 export type VehicleStatus = "actif" | "en_reparation" | "stocke" | "vendu" | "reforme";
 
-export type FuelType = "essence" | "diesel" | "electrique" | "hybride" | "gpl";
-
 // ==================== Interface Véhicule Principal ====================
 
 export interface Vehicle {
   id: string;                          // ID Firebase auto-généré
 
   // Identification
-  nom?: string;                        // Nom personnalisé (ex: "Tracteur rouge")
   type: VehicleType;                   // Type de véhicule
   marque?: string;                     // Marque (Renault, John Deere, etc.)
   modele?: string;                     // Modèle
-  annee?: number;                      // Année de fabrication
+  dateMiseEnCirculation?: string;      // Date de mise en circulation (ISO format)
 
-  // Immatriculation et numéros
+  // Immatriculation
   plaqueImmatriculation?: string;      // Plaque d'immatriculation
-  numeroSerie?: string;                // Numéro de série / VIN
 
   // État et statut
   statut: VehicleStatus;               // État actuel
@@ -32,22 +28,24 @@ export interface Vehicle {
   kilometrage?: number;                // Kilométrage actuel
 
   // Spécifications techniques
-  typeCarburant?: FuelType;            // Type de carburant
-  capaciteReservoir?: number;          // Capacité en litres
   puissance?: number;                  // Puissance (CV ou kW)
 
   // Financier
   valeurAchat?: number;                // Prix d'achat
   dateAchat?: string;                  // Date d'achat (ISO format)
-  valeurActuelle?: number;             // Valeur estimée actuelle
 
-  // Assurance et documents
-  numeroPoliceAssurance?: string;      // Numéro de police d'assurance
-  dateExpAssurance?: string;           // Date d'expiration assurance
+  // Documents
   dateProchainCT?: string;             // Date prochain contrôle technique
+
+  // Composants / références pièces
+  composants?: import("@/store/store").Composant[];
 
   // Notes
   commentaire?: string;                // Notes diverses
+
+  // Photo principale (affichée sur la carte)
+  photoUrl?: string;                   // URL Firebase Storage de la photo principale
+  photoStoragePath?: string;           // Chemin de stockage pour suppression
 
   // Méta-données (auto-générées)
   dateCreation?: string;               // Date de création de la fiche
@@ -76,10 +74,10 @@ export interface MaintenanceEntry {
   vehicleId: string;                   // Référence au véhicule
 
   // Informations de base
-  type: MaintenanceType;               // Type d'entretien
-  titre: string;                       // Titre court (ex: "Vidange moteur")
+  type?: MaintenanceType;              // Type d'entretien
+  titre?: string;                      // Titre court (ex: "Vidange moteur")
   description?: string;                // Description détaillée
-  statut: MaintenanceStatus;           // État de l'entretien
+  statut?: MaintenanceStatus;          // État de l'entretien
 
   // Dates et déclencheurs
   dateEffectuee?: string;              // Date de réalisation (ISO format)
@@ -108,6 +106,7 @@ export interface MaintenanceEntry {
 
   // Documents
   facture?: string;                    // URL de la facture (Firebase Storage)
+  factureStoragePath?: string;         // Chemin de stockage pour suppression
 
   // Méta-données
   dateCreation?: string;
@@ -210,42 +209,58 @@ export interface MaintenanceTemplate {
   piecesTypiques?: string[];           // Liste de noms de pièces
 }
 
+// ==================== Relevés Compteurs ====================
+
+export type MeterReadingType = "kilometrage" | "heures";
+
+export interface MeterReading {
+  id: string;
+  vehicleId: string;
+
+  type: MeterReadingType;              // Type de relevé
+  valeur: number;                      // Valeur relevée (km ou heures)
+  date: string;                        // Date du relevé (ISO format)
+  commentaire?: string;                // Note optionnelle
+
+  dateCreation?: string;
+}
+
+export interface MeterReadingFormData {
+  type: MeterReadingType;
+  valeur: string;
+  date: string;
+  commentaire?: string;
+}
+
 // ==================== Formulaires ====================
 
 export interface VehicleFormData {
-  nom?: string;
   type: VehicleType;
   marque?: string;
   modele?: string;
-  annee?: string;                      // String car vient d'un input
+  dateMiseEnCirculation?: string;
 
   plaqueImmatriculation?: string;
-  numeroSerie?: string;
 
   statut: VehicleStatus;
-  heuresUtilisation?: string;          // String car vient d'un input
+  heuresUtilisation?: string;
   kilometrage?: string;
 
-  typeCarburant?: FuelType;
-  capaciteReservoir?: string;
   puissance?: string;
 
   valeurAchat?: string;
   dateAchat?: string;
-  valeurActuelle?: string;
 
-  numeroPoliceAssurance?: string;
-  dateExpAssurance?: string;
   dateProchainCT?: string;
 
   commentaire?: string;
 }
 
 export interface MaintenanceFormData {
-  type: MaintenanceType;
-  titre: string;
+  type?: MaintenanceType;
+  titre?: string;
   description?: string;
-  statut: MaintenanceStatus;
+  statut?: MaintenanceStatus;
 
   dateEffectuee?: string;
   datePlanifiee?: string;
@@ -291,8 +306,8 @@ export interface MaintenanceAlert {
   vehicleId: string;
   vehicleNom: string;
   maintenanceId?: string;
-  type: MaintenanceType;
-  titre: string;
+  type?: MaintenanceType;
+  titre?: string;
   raison: "date" | "kilometrage" | "heures";
   valeurActuelle?: number;             // Km ou heures actuels
   valeurCible?: number;                // Km ou heures du prochain entretien
